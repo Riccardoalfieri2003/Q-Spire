@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Analyzer Tool</title>
+    <style>
+    body {
+        font-family: sans-serif;
+        padding: 20px;
+    }
+    button {
+        background-color: #007acc;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        font-size: 16px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    button:hover {
+        background-color: #005f99;
+    }
+    </style>
+</head>
+
+<body>
+    <h1>Welcome to Code Analyzer</h1>
+    <p>Select an option below:</p>
+    <button onclick="vscode.postMessage({ command: 'analyze' })">Analyze File</button>
+
+
+    <script>
+    const vscode = acquireVsCodeApi();
+
+    // You can handle messages from extension if needed here
+    </script>
+</body>
+
+</html>
