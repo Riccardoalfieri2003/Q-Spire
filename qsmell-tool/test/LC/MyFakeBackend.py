@@ -43,7 +43,8 @@ class MyFakeBackend(GenericBackendV2):
         return 1000  # arbitrary limit for fake backend
 
     def run(self, circuits, **kwargs):
-        raise NotImplementedError("This fake backend does not support execution.")
+        return None
+        #raise NotImplementedError("This fake backend does not support execution.")
     
     def __init__(
         self,
@@ -216,7 +217,7 @@ fake_backend = MyFakeBackend(
 )
 
 # Access properties
-props = fake_backend.properties()
+#props = fake_backend.properties()
 """
 print("T1 times:", [q[0].value for q in props.qubits])
 print("X gate errors:", [g.parameters[0].value for g in props.gates if g.gate == 'x'])
