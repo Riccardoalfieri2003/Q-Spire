@@ -20,7 +20,7 @@ def test_custom_gate_detector():
     with open("test/LC/LCCode.py", "r", encoding="utf-8") as file:
         test_code = file.read()    
 
-
+        
     
     detector = Detector(LC)
     smel=detector.detect(test_code)

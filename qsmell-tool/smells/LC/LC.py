@@ -4,19 +4,6 @@ class LC(QuantumSmell):
     def __init__(self, likelihood: float, error: dict, l: float, c: float, 
                  backend: str = None, circuit_name: str = None, 
                  explanation: str = None, suggestion: str = None):
-        """
-        Initializes a LC (Low Confidence) quantum smell.
-        
-        Args:
-            likelihood: Numeric value (0-1) indicating probability of problems
-            error: Dictionary with single item {'gate_name': error_value}
-            l: Numerical value representing 'l' parameter
-            c: Numerical value representing 'c' parameter
-            backend: Name/identifier of the backend used
-            circuit_name: Optional name of the circuit
-            explanation: Optional explanation of the smell
-            suggestion: Optional suggestion for mitigation
-        """
         super().__init__(
             type_="LC",
             row=None,
