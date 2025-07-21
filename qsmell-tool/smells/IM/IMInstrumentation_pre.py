@@ -12,92 +12,7 @@ class CircuitAutoTracker:
         for name, obj in global_vars.items():
             if isinstance(obj, QuantumCircuit):
                 self.all_circuits[name] = None
-
     """
-    def find_operations_with_positions(self, source_code):
-        tree = ast.parse(source_code)
-        circuit_names = set(self.all_circuits.keys())
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and hasattr(node.func, 'value'):
-                if hasattr(node.func.value, 'id') and node.func.value.id in circuit_names:
-                    circuit_name = node.func.value.id
-                    op_name = getattr(node.func, 'attr', None)
-                    qubits = []
-
-                    for arg in node.args:
-                        if isinstance(arg, ast.Constant):
-                            qubits.append(arg.value)
-                        elif isinstance(arg, ast.Tuple):
-                            # Multiple qubits
-                            for elt in arg.elts:
-                                if isinstance(elt, ast.Constant):
-                                    qubits.append(elt.value)
-
-                    self.positions[circuit_name].append(
-                        (op_name, qubits, node.lineno, node.col_offset, node.end_col_offset if hasattr(node, 'end_col_offset') else None)
-                    )
-    """
-
-    """
-    def find_operations_with_positions(self, source_code):
-        tree = ast.parse(source_code)
-        circuit_names = set(self.all_circuits.keys())
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and hasattr(node.func, 'value'):
-                if hasattr(node.func.value, 'id') and node.func.value.id in circuit_names:
-                    circuit_name = node.func.value.id
-                    op_name = getattr(node.func, 'attr', None)
-                    qubits = []
-                    params = []
-
-                    # Helper to extract value from AST node
-                    def get_value(node):
-                        if isinstance(node, ast.Constant):
-                            return node.value
-                        elif isinstance(node, ast.Attribute):
-                            # Handle cases like qreg_q[0]
-                            if isinstance(node.value, ast.Name):
-                                return f"{node.value.id}.{node.attr}"
-                        elif isinstance(node, ast.Subscript):
-                            # Handle cases like qreg_q[0]
-                            if isinstance(node.value, ast.Name):
-                                return f"{node.value.id}[...]"
-                        elif isinstance(node, ast.Name):
-                            return node.id
-                        return None
-
-                    # First check if this is a parameterized gate
-                    if node.args and isinstance(node.args[0], ast.Constant) and op_name in ['rz', 'rx', 'ry', 'u', 'p']:
-                        params.append(node.args[0].value)
-                        remaining_args = node.args[1:]
-                    else:
-                        remaining_args = node.args
-
-                    # Process qubit arguments
-                    for arg in remaining_args:
-                        val = get_value(arg)
-                        if val is not None:
-                            if isinstance(val, (int, float)):
-                                qubits.append(val)
-                            elif isinstance(val, str) and val.endswith('[...]'):
-                                # Handle array-style access like qreg_q[0]
-                                qubits.append(val.split('[')[0])
-                            elif isinstance(val, str) and '.' in val:
-                                # Handle attribute access
-                                qubits.append(val.split('.')[0])
-
-                    # Format operation name
-                    if params:
-                        op_name = f"{op_name}({','.join(map(str, params))})"
-
-                    self.positions[circuit_name].append(
-                        (op_name, qubits, node.lineno, node.col_offset,
-                        node.end_col_offset if hasattr(node, 'end_col_offset') else None)
-                    )
-    """
-
     def find_operations_with_positions(self, source_code):
         tree = ast.parse(source_code)
         circuit_names = set(self.all_circuits.keys())
@@ -160,6 +75,92 @@ class CircuitAutoTracker:
                             # Skip classical registers
                             if arg.id not in classical_registers:
                                 qubits.append(arg.id)
+
+                    # Format parametric op name
+                    if params:
+                        op_name = f"{op_name}({','.join(params)})"
+
+                    self.positions[circuit_name].append(
+                        (op_name, qubits, node.lineno, node.col_offset,
+                        getattr(node, 'end_col_offset', None))
+                    )
+    """
+
+    def find_operations_with_positions(self, source_code):
+        tree = ast.parse(source_code)
+        circuit_names = set(self.all_circuits.keys())
+        classical_registers = set()
+        quantum_register_sizes = {}
+
+        # First pass: find all classical and quantum registers
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+                if hasattr(node.value.func, 'id'):
+                    reg_type = node.value.func.id
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            reg_name = target.id
+                            if reg_type == 'ClassicalRegister':
+                                classical_registers.add(reg_name)
+                            elif reg_type == 'QuantumRegister' and node.value.args:
+                                # Extract the register size (assumes constant integer size)
+                                if isinstance(node.value.args[0], ast.Constant) and isinstance(node.value.args[0].value, int):
+                                    quantum_register_sizes[reg_name] = node.value.args[0].value
+
+        # Second pass: find operations
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and hasattr(node.func, 'value'):
+                if hasattr(node.func.value, 'id') and node.func.value.id in circuit_names:
+                    circuit_name = node.func.value.id
+                    op_name = getattr(node.func, 'attr', None)
+                    qubits = []
+                    params = []
+
+                    remaining_args = node.args
+
+                    # Extract parameterized gates
+                    if op_name in ['rz', 'rx', 'ry', 'u', 'p'] and remaining_args:
+                        first = remaining_args[0]
+                        if isinstance(first, (ast.Constant, ast.BinOp, ast.UnaryOp, ast.Call)):
+                            try:
+                                param = ast.unparse(first)
+                            except Exception:
+                                param = "param"
+                            params.append(param)
+                            remaining_args = remaining_args[1:]
+
+                    # Extract qubit arguments
+                    for arg in remaining_args:
+                        if isinstance(arg, ast.Subscript):
+                            # Handle qreg[0], creg[0]
+                            reg_name = None
+                            index_value = None
+
+                            if isinstance(arg.value, ast.Name):
+                                reg_name = arg.value.id
+
+                            if isinstance(arg.slice, ast.Constant):
+                                index_value = arg.slice.value
+                            elif hasattr(arg.slice, 'value') and isinstance(arg.slice.value, ast.Constant):
+                                index_value = arg.slice.value.value
+
+                            if reg_name and index_value is not None:
+                                if reg_name not in classical_registers:
+                                    qubits.append(index_value)
+
+                        elif isinstance(arg, ast.Constant):
+                            if isinstance(arg.value, int):
+                                qubits.append(arg.value)
+
+                        elif isinstance(arg, ast.Name):
+                            # If it's a full register name, replace it with list of all its qubit indices
+                            reg_name = arg.id
+                            if reg_name not in classical_registers:
+                                if reg_name in quantum_register_sizes:
+                                    reg_size = quantum_register_sizes[reg_name]
+                                    qubits.extend(range(reg_size))
+                                else:
+                                    qubits.append(reg_name)  # fallback
 
                     # Format parametric op name
                     if params:
