@@ -16,7 +16,6 @@
 
     @classmethod
     def register(cls, smell_class):
-        def decorator(subclass):
             cls.registry[smell_class] = subclass
             return subclass
         return decorator
