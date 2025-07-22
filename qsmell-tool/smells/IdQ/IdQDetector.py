@@ -88,7 +88,7 @@ class IdQDetector(Detector):
             exec(combined_code, exec_namespace)
             self.position_tracker = exec_namespace.get('position_tracker')
 
-            print(self.position_tracker)
+            #print(self.position_tracker)
 
             """
             # -------------- IDQ DETECTION STARTS HERE ----------------
@@ -152,7 +152,7 @@ class IdQDetector(Detector):
                         last_op_index[q] = index
 
 
-            
+            """
             print("\n--- Qubit Operation Distances ---")
             for circuit_name, ops in self.position_tracker.items():
                 print(f"Circuit: {circuit_name}")
@@ -167,6 +167,7 @@ class IdQDetector(Detector):
                         else:
                             print(f"Qubit {q} | Op '{op_name}' at line {row} | First use (no previous op)")
                         last_use[q] = op_index
+            """
             
 
             # -------------- IDQ DETECTION ENDS HERE ----------------
