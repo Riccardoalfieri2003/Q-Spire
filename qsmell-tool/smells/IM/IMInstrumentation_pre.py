@@ -1,90 +1,21 @@
+# --- PRE‑INSTRUMENTATION CODE ---
 import ast
 from collections import defaultdict
 from qiskit import QuantumCircuit
 
 class CircuitAutoTracker:
     def __init__(self):
+        # detected circuit names → None for now
         self.all_circuits = {}
-        self.trackers = {}
-        self.positions = defaultdict(list)  # circuit_name -> [(op, [qubits], lineno, col_start, col_end)]
-        
+        # circuit_name → list of (op, [qubits], lineno, col0, col1)
+        self.positions    = defaultdict(list)
+        # storage for per‑circuit trackers
+        self.trackers     = {}     
+
     def find_circuits_in_globals(self, global_vars):
         for name, obj in global_vars.items():
             if isinstance(obj, QuantumCircuit):
                 self.all_circuits[name] = None
-    """
-    def find_operations_with_positions(self, source_code):
-        tree = ast.parse(source_code)
-        circuit_names = set(self.all_circuits.keys())
-        classical_registers = set()
-
-        # First pass: find all classical register names
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
-                if hasattr(node.value.func, 'id') and node.value.func.id == 'ClassicalRegister':
-                    for target in node.targets:
-                        if isinstance(target, ast.Name):
-                            classical_registers.add(target.id)
-
-        # Second pass: find operations
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and hasattr(node.func, 'value'):
-                if hasattr(node.func.value, 'id') and node.func.value.id in circuit_names:
-                    circuit_name = node.func.value.id
-                    op_name = getattr(node.func, 'attr', None)
-                    qubits = []
-                    params = []
-
-                    remaining_args = node.args
-
-                    # Extract parameterized gates
-                    if op_name in ['rz', 'rx', 'ry', 'u', 'p'] and remaining_args:
-                        first = remaining_args[0]
-                        if isinstance(first, (ast.Constant, ast.BinOp, ast.UnaryOp, ast.Call)):
-                            try:
-                                param = ast.unparse(first)
-                            except Exception:
-                                param = "param"
-                            params.append(param)
-                            remaining_args = remaining_args[1:]
-
-                    # Extract qubit arguments
-                    for arg in remaining_args:
-                        if isinstance(arg, ast.Subscript):
-                            # Handle qreg[0], creg[0]
-                            reg_name = None
-                            index_value = None
-
-                            if isinstance(arg.value, ast.Name):
-                                reg_name = arg.value.id
-
-                            if isinstance(arg.slice, ast.Constant):
-                                index_value = arg.slice.value
-                            elif hasattr(arg.slice, 'value') and isinstance(arg.slice.value, ast.Constant):
-                                index_value = arg.slice.value.value
-
-                            if reg_name and index_value is not None:
-                                if reg_name not in classical_registers:
-                                    qubits.append(index_value)
-
-                        elif isinstance(arg, ast.Constant):
-                            if isinstance(arg.value, int):
-                                qubits.append(arg.value)
-
-                        elif isinstance(arg, ast.Name):
-                            # Skip classical registers
-                            if arg.id not in classical_registers:
-                                qubits.append(arg.id)
-
-                    # Format parametric op name
-                    if params:
-                        op_name = f"{op_name}({','.join(params)})"
-
-                    self.positions[circuit_name].append(
-                        (op_name, qubits, node.lineno, node.col_offset,
-                        getattr(node, 'end_col_offset', None))
-                    )
-    """
 
     def find_operations_with_positions(self, source_code):
         tree = ast.parse(source_code)
@@ -92,126 +23,88 @@ class CircuitAutoTracker:
         classical_registers = set()
         quantum_register_sizes = {}
 
-        # First pass: find all classical and quantum registers
+        # 1) register size inference
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
-                if hasattr(node.value.func, 'id'):
-                    reg_type = node.value.func.id
-                    for target in node.targets:
-                        if isinstance(target, ast.Name):
-                            reg_name = target.id
-                            if reg_type == 'ClassicalRegister':
-                                classical_registers.add(reg_name)
-                            elif reg_type == 'QuantumRegister' and node.value.args:
-                                # Extract the register size (assumes constant integer size)
-                                if isinstance(node.value.args[0], ast.Constant) and isinstance(node.value.args[0].value, int):
-                                    quantum_register_sizes[reg_name] = node.value.args[0].value
+                func = getattr(node.value.func, 'id', None)
+                for tgt in node.targets:
+                    if isinstance(tgt, ast.Name):
+                        if func == 'ClassicalRegister':
+                            classical_registers.add(tgt.id)
+                        elif func == 'QuantumRegister' and node.value.args:
+                            arg0 = node.value.args[0]
+                            if isinstance(arg0, ast.Constant) and isinstance(arg0.value, int):
+                                quantum_register_sizes[tgt.id] = arg0.value
 
-        # Second pass: find operations
+        # 2) collect raw positions
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and hasattr(node.func, 'value'):
-                if hasattr(node.func.value, 'id') and node.func.value.id in circuit_names:
-                    circuit_name = node.func.value.id
-                    op_name = getattr(node.func, 'attr', None)
+                circ = getattr(node.func.value, 'id', None)
+                if circ in circuit_names:
+                    op = getattr(node.func, 'attr', None)
                     qubits = []
                     params = []
+                    args = node.args
 
-                    remaining_args = node.args
-
-                    # Extract parameterized gates
-                    if op_name in ['rz', 'rx', 'ry', 'u', 'p'] and remaining_args:
-                        first = remaining_args[0]
+                    # parametric ops
+                    if op in ['rz','rx','ry','u','p'] and args:
+                        first = args[0]
                         if isinstance(first, (ast.Constant, ast.BinOp, ast.UnaryOp, ast.Call)):
                             try:
-                                param = ast.unparse(first)
+                                params.append(ast.unparse(first))
+                                args = args[1:]
                             except Exception:
-                                param = "param"
-                            params.append(param)
-                            remaining_args = remaining_args[1:]
+                                pass
 
-                    # Extract qubit arguments
-                    for arg in remaining_args:
+                    # qubit indices
+                    for arg in args:
                         if isinstance(arg, ast.Subscript):
-                            # Handle qreg[0], creg[0]
-                            reg_name = None
-                            index_value = None
-
-                            if isinstance(arg.value, ast.Name):
-                                reg_name = arg.value.id
-
+                            reg = getattr(arg.value, 'id', None)
+                            idx = None
                             if isinstance(arg.slice, ast.Constant):
-                                index_value = arg.slice.value
+                                idx = arg.slice.value
                             elif hasattr(arg.slice, 'value') and isinstance(arg.slice.value, ast.Constant):
-                                index_value = arg.slice.value.value
-
-                            if reg_name and index_value is not None:
-                                if reg_name not in classical_registers:
-                                    qubits.append(index_value)
-
-                        elif isinstance(arg, ast.Constant):
-                            if isinstance(arg.value, int):
-                                qubits.append(arg.value)
-
+                                idx = arg.slice.value.value
+                            if reg and idx is not None and reg not in classical_registers:
+                                qubits.append(idx)
+                        elif isinstance(arg, ast.Constant) and isinstance(arg.value, int):
+                            qubits.append(arg.value)
                         elif isinstance(arg, ast.Name):
-                            # If it's a full register name, replace it with list of all its qubit indices
-                            reg_name = arg.id
-                            if reg_name not in classical_registers:
-                                if reg_name in quantum_register_sizes:
-                                    reg_size = quantum_register_sizes[reg_name]
-                                    qubits.extend(range(reg_size))
+                            reg = arg.id
+                            if reg not in classical_registers:
+                                size = quantum_register_sizes.get(reg)
+                                if size is not None:
+                                    qubits.extend(range(size))
                                 else:
-                                    qubits.append(reg_name)  # fallback
+                                    qubits.append(reg)
 
-                    # Format parametric op name
                     if params:
-                        op_name = f"{op_name}({','.join(params)})"
+                        op = f"{op}({','.join(params)})"
 
-                    self.positions[circuit_name].append(
-                        (op_name, qubits, node.lineno, node.col_offset,
-                        getattr(node, 'end_col_offset', None))
-                    )
+                    self.positions[circ].append((
+                        op, qubits,
+                        node.lineno,
+                        node.col_offset,
+                        getattr(node, 'end_col_offset', None)
+                    ))
 
-
-    def track_all_circuits(self, global_vars):
-        for name in self.all_circuits:
-            if name in global_vars and isinstance(global_vars[name], QuantumCircuit):
-                tracker = EnhancedQubitTracker()
-                tracker.track(global_vars[name])
-                self.trackers[name] = tracker
-
-    def get_all_operations(self):
-        return {name: tracker.get_sequential_operations() 
-                for name, tracker in self.trackers.items()}
+        # 3) flatten out all `append` entries
+        new_pos = defaultdict(list)
+        for circ, ops in self.positions.items():
+            for op, args, ln, c0, c1 in ops:
+                if op == 'append':
+                    sub_name   = args[0]
+                    qubit_args = args[1:]
+                    for sub_op, sub_qs, *_ in self.positions[sub_name]:
+                        mapped = [ qubit_args[i] for i in sub_qs ]
+                        new_pos[circ].append((sub_op, mapped, ln, c0, c1))
+                else:
+                    new_pos[circ].append((op, args, ln, c0, c1))
+        self.positions = new_pos
 
     def get_all_positions(self):
         return dict(self.positions)
 
-
-class EnhancedQubitTracker:
-    def __init__(self):
-        self.qubit_ops = defaultdict(list)
-        self.global_order = []
-
-    def track(self, circuit):
-        for instruction, qargs, _ in circuit.data:
-            op_name = instruction.name
-            qubit_indices = [self._get_qubit_index(circuit, q) for q in qargs]
-
-            for q in qubit_indices:
-                self.qubit_ops[q].append(op_name)
-
-            self.global_order.append((op_name, qubit_indices))
-        return self
-
-    def _get_qubit_index(self, circuit, qubit):
-        return circuit.qubits.index(qubit) if hasattr(circuit, 'qubits') else qubit.index
-
-    def get_qubit_operations(self):
-        return dict(sorted(self.qubit_ops.items()))
-
-    def get_sequential_operations(self):
-        return [(op, qubits) for op, qubits in self.global_order]
-
-
-# Shared trackers for post instrumentation
-tracker = EnhancedQubitTracker()
+    # no-op stub; your post-code will fill self.trackers directly
+    def track_all_circuits(self, global_vars):
+        pass
