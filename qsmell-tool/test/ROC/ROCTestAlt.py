@@ -1,66 +1,3 @@
-"""import ast
-from smells.Detector import Detector
-from smells.ROC.ROCDetector import ROCDetector
-from smells.ROC.ROC import ROC
-
-
-import ast
-
-class GeneralQiskitOpVisitor(ast.NodeVisitor):
-    def __init__(self, circuit_variable_names=None):
-        super().__init__()
-        self.operations = []
-        self.circuit_variable_names = circuit_variable_names or set()
-
-    def visit_Assign(self, node):
-        # Track variables that store QuantumCircuit objects
-        if isinstance(node.value, ast.Call):
-            func = node.value.func
-            if isinstance(func, ast.Name) and func.id == "QuantumCircuit":
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        self.circuit_variable_names.add(target.id)
-        self.generic_visit(node)
-
-    def visit_Call(self, node):
-        # Check if it's a method call on a circuit variable
-        if isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
-            circuit_var = node.func.value.id
-            if circuit_var in self.circuit_variable_names:
-                self.operations.append({
-                    "circuit": circuit_var,
-                    "method": node.func.attr,  # e.g., h, cx, custom_gate
-                    "lineno": node.lineno,
-                    "col_offset": node.col_offset,
-                    "end_lineno": getattr(node, "end_lineno", node.lineno),
-                    "end_col_offset": getattr(node, "end_col_offset", node.col_offset + 1),
-                    "raw": ast.unparse(node)  # full source of the op
-                })
-        self.generic_visit(node)
-
-
-
-
-
-def test_custom_gate_detector():
-    
-    # Example quantum code with custom gates
-    with open("test/ROC/ROCCode.py", "r") as file:
-        test_code = file.read()    
-
-    tree = ast.parse(test_code)
-    visitor = GeneralQiskitOpVisitor()
-    visitor.visit(tree)
-
-    for op in visitor.operations:
-        print(op)
-
-
-if __name__ == "__main__":
-    test_custom_gate_detector()"""
-
-
-
 import ast
 import re
 import sys
@@ -68,14 +5,11 @@ from typing import Dict, List, Tuple, Any
 from collections import defaultdict
 import importlib.util
 
-"""
-python -m test.ROC.ROCTest
-"""
-
 class QuantumCircuitAnalyzer:
     def __init__(self):
         self.circuit_operations = defaultdict(list)
         self.circuit_names = []
+        self.all_circuits = {}  # Store all circuits for subcircuit analysis
         
     def analyze_file(self, filepath: str, debug: bool = False) -> Dict[str, List[Dict]]:
         """
@@ -105,6 +39,8 @@ class QuantumCircuitAnalyzer:
         
         # Execute the code to get actual circuit data
         circuits_data = self._execute_and_extract_circuits(filepath, circuit_vars, debug)
+        self.all_circuits = circuits_data  # Store for subcircuit analysis
+        
         if debug:
             print(f"Extracted circuits: {list(circuits_data.keys())}")
         
@@ -175,6 +111,27 @@ class QuantumCircuitAnalyzer:
                 
         return circuits
     
+    def _get_subcircuit_operations(self, operation_name: str) -> List[str]:
+        """Extract actual operations from a subcircuit."""
+        # Remove leading/trailing spaces from operation name
+        clean_name = operation_name.strip()
+        
+        # Find the corresponding subcircuit
+        for circuit_name, circuit in self.all_circuits.items():
+            if hasattr(circuit, 'name') and circuit.name and circuit.name.strip() == clean_name:
+                # Extract operations from this subcircuit
+                operations = []
+                try:
+                    circuit_data = list(circuit.data)
+                    for instruction in circuit_data:
+                        operations.append(instruction.operation.name)
+                    return operations
+                except:
+                    return [clean_name]  # Fallback to original name
+        
+        # If no matching subcircuit found, return the original operation name
+        return [clean_name]
+    
     def _map_operations_to_source(self, circuit, source_code: str, circuit_name: str, debug: bool = False) -> List[Dict]:
         """Map circuit operations to their source code locations."""
         lines = source_code.split('\n')
@@ -196,7 +153,6 @@ class QuantumCircuitAnalyzer:
                     for instruction in circuit:
                         circuit_data.append(instruction)
                 except:
-                    #print(f"Warning: Could not extract data from circuit {circuit_name}")
                     return []
         
         if debug:
@@ -225,64 +181,47 @@ class QuantumCircuitAnalyzer:
                 operation, qubits, clbits, operation_lines, lines, op_index
             )
 
-            #print(source_info)
-
-            #print(operation.name)
+            # Get the actual operation name(s) from subcircuits
+            subcircuit_ops = self._get_subcircuit_operations(operation.name)
+            actual_operation_name = subcircuit_ops[0] if subcircuit_ops else operation.name
 
             try: 
-
-                
-                #print(source_info["source_line"][:-1])
-                
-                #print(source_line)
-                source_line=eval(source_info["source_line"])
-
+                source_line = eval(source_info["source_line"])
                 operation_info = {
-                    'operation_name': source_line["operation_name"],
+                    'operation_name': actual_operation_name,  # Use actual operation from subcircuit
                     'qubits_affected': [qubit._index for qubit in qubits],
                     'clbits_affected': [clbit._index for clbit in clbits] if clbits else [],
                     'row': source_line['row'],
                     'column_start': source_line['column_start'],
                     'column_end': source_line['column_end'],
-                    'source_line': source_line['source_line']
+                    'source_line': source_line['source_line'],
+                    'subcircuit_operations': subcircuit_ops  # Include all operations from subcircuit
                 }
                 
             except:
                 try: 
-                    #print(source_info["source_line"][:-1])
-                    source_line=eval(source_info["source_line"][:-1])
-                    #print(source_line)
-
+                    source_line = eval(source_info["source_line"][:-1])
                     operation_info = {
-                        'operation_name': source_line["operation_name"],
+                        'operation_name': actual_operation_name,  # Use actual operation from subcircuit
                         'qubits_affected': [qubit._index for qubit in qubits],
                         'clbits_affected': [clbit._index for clbit in clbits] if clbits else [],
                         'row': source_line['row'],
                         'column_start': source_line['column_start'],
                         'column_end': source_line['column_end'],
-                        'source_line': source_line['source_line']
+                        'source_line': source_line['source_line'],
+                        'subcircuit_operations': subcircuit_ops  # Include all operations from subcircuit
                     }
         
                 except:
-
                     operation_info = {
-                        'operation_name': operation.name,
+                        'operation_name': actual_operation_name,  # Use actual operation from subcircuit
                         'qubits_affected': [qubit._index for qubit in qubits],
                         'clbits_affected': [clbit._index for clbit in clbits] if clbits else [],
                         'row': source_info['row'],
                         'column_start': source_info['column_start'],
                         'column_end': source_info['column_end'],
-                        #'source_line': source_info['source_line']
+                        'subcircuit_operations': subcircuit_ops  # Include all operations from subcircuit
                     }
-
-            
-            #print()
-                #print(op_dict)
-            #except: print("No op")
-            #print(type(source_info["source_line"]))
-            #print()
-
-            
             
             operations.append(operation_info)
             op_index += 1
@@ -358,7 +297,6 @@ class QuantumCircuitAnalyzer:
         return default_result
 
 
-# Example usage
 def analyze_quantum_file(input_file: str, output_file: str = None, debug: bool = False):
     """
     Analyze a quantum circuit file and optionally save results.
@@ -371,21 +309,6 @@ def analyze_quantum_file(input_file: str, output_file: str = None, debug: bool =
     analyzer = QuantumCircuitAnalyzer()
     results = analyzer.analyze_file(input_file, debug)
     
-    """
-    # Print results
-    for circuit_name, operations in results.items():
-        print(f"\n=== Circuit: {circuit_name} ===")
-        for i, op in enumerate(operations):
-            print(f"Operation {i+1}:")
-            print(f"  Name: {op['operation_name']}")
-            print(f"  Qubits: {op['qubits_affected']}")
-            if op['clbits_affected']:
-                print(f"  Classical bits: {op['clbits_affected']}")
-            print(f"  Location: Row {op['row']}, Columns {op['column_start']}-{op['column_end']}")
-            print(f"  Source: {op['source_line']}")
-            print()
-    """
-    
     # Save to file if requested
     if output_file:
         import json
@@ -394,14 +317,16 @@ def analyze_quantum_file(input_file: str, output_file: str = None, debug: bool =
         print(f"Results saved to {output_file}")
 
     import pprint
-    pprint.pp(results)
-    #print(results)
+    #pprint.pp(results)
+
+    for circuit in results:
+        print(circuit)
+        pprint.pp(results[circuit])
+        print()
     
     return results
-
 
 
 # Example of how to use it
 if __name__ == "__main__":
     analyze_quantum_file("test/ROC/ROCCode.py", None, debug=False)
-    pass
