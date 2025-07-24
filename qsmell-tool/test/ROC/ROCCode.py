@@ -7,25 +7,23 @@ phi = Parameter('phi')
 
 qc = QuantumCircuit (3, 3) # 3 Quantum and 3 Classical registers
 
+
 hadamard = QuantumCircuit (1, name=' H' )
 hadamard.h(0)
-hadamard.z(0)
 
 measureQubit = QuantumCircuit (1, 1, name='M' )
 measureQubit.measure(0, 0)
 
 z=QuantumCircuit (1, name=' Z' )
 z.z(0)
+z.h(0)
 
-h=QuantumCircuit (2, name=' h' )
-h.cx(0,1)
 
-for j in range (3) :
-    qc.append (hadamard, [j])
-for j in range (3):
-    qc.append (measureQubit, [j], [j])
-    qc.append(z, [j])
-    qc.rx(phi/2, [j]) # parameterize the rotation
+
+
+for j in range (3) : qc.append( hadamard, [j] )
+for j in range (3): 
+    qc.z([j])
 
 qc.barrier ()
 
