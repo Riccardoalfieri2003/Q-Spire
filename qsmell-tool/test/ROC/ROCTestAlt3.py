@@ -6,7 +6,7 @@ from collections import defaultdict
 import importlib.util
 
 """
-DA USARE!!! Controllare con Alt2
+Usare la versione 4, migliore
 """
 
 class QuantumCircuitAnalyzer:
