@@ -1,5 +1,3 @@
-import ast
-from collections import defaultdict
 from smells.Detector import Detector
 from smells.IM.IM import IM
 from smells.OperationCircuitTracker import analyze_quantum_file

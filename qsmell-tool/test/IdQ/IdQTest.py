@@ -17,13 +17,14 @@ def test_custom_gate_detector():
     """
     
     # Example quantum code with custom gates
-    with open("test/IdQ/IdQCode.py", "r") as file:
-        test_code = file.read()    
+    file="test/IdQ/IdQCode.py"
+    """with open("test/IdQ/IdQCode.py", "r") as file:
+        test_code = file.read()    """
 
 
     
     detector = Detector(IdQ)
-    smel=detector.detect(test_code)
+    smel=detector.detect(file)
 
     for smell in smel:
         print(smell.as_dict())

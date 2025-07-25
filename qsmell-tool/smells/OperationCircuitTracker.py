@@ -23,6 +23,7 @@ class QuantumCircuitAnalyzer:
         self.all_circuits = {}  # Store all circuits for subcircuit analysis
         self.subcircuit_states = {}  # Track subcircuit states during execution
         self.circuit_sizes = {}  # Track the number of qubits in each circuit
+        self.register_info = {}  # Track quantum and classical register information
         
     def analyze_file(self, filepath: str, debug: bool = False) -> Dict[str, List[Dict]]:
         """
@@ -45,11 +46,13 @@ class QuantumCircuitAnalyzer:
         # Parse the AST to find circuit-related operations
         tree = ast.parse(source_code)
         
-        # Find all QuantumCircuit variables and their sizes
+        # Find all QuantumCircuit variables and their sizes, plus register info
         circuit_vars = self._find_circuit_variables(tree, source_code)
+        self._find_register_variables(tree)
         if debug:
             print(f"Found circuit variables: {circuit_vars}")
             print(f"Circuit sizes: {self.circuit_sizes}")
+            print(f"Register info: {self.register_info}")
         
         # Simulate execution step by step to track dynamic subcircuit construction
         results = self._simulate_execution_with_tracking(filepath, source_code, circuit_vars, debug)
@@ -89,6 +92,40 @@ class QuantumCircuitAnalyzer:
                                                 self.circuit_sizes[target.id] = int(match.group(1))
         
         return circuit_vars
+    
+    def _find_register_variables(self, tree: ast.AST) -> None:
+        """Find all QuantumRegister and ClassicalRegister variables and their sizes."""
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        # Check if it's a QuantumRegister or ClassicalRegister assignment
+                        if isinstance(node.value, ast.Call):
+                            register_type = None
+                            if isinstance(node.value.func, ast.Name):
+                                if node.value.func.id == 'QuantumRegister':
+                                    register_type = 'quantum'
+                                elif node.value.func.id == 'ClassicalRegister':
+                                    register_type = 'classical'
+                            elif isinstance(node.value.func, ast.Attribute):
+                                if node.value.func.attr == 'QuantumRegister':
+                                    register_type = 'quantum'
+                                elif node.value.func.attr == 'ClassicalRegister':
+                                    register_type = 'classical'
+                            
+                            if register_type and node.value.args:
+                                # Try to extract the size
+                                size = None
+                                if isinstance(node.value.args[0], ast.Constant):
+                                    size = node.value.args[0].value
+                                elif isinstance(node.value.args[0], ast.Num):  # For older Python versions
+                                    size = node.value.args[0].n
+                                
+                                if size is not None:
+                                    self.register_info[target.id] = {
+                                        'type': register_type,
+                                        'size': size
+                                    }
     
     def _simulate_execution_with_tracking(self, filepath: str, source_code: str, circuit_vars: List[str], debug: bool = False) -> Dict[str, List[Dict]]:
         """Simulate execution step by step to track dynamic subcircuit construction."""
@@ -413,18 +450,34 @@ class QuantumCircuitAnalyzer:
         parts = [p.strip() for p in params_str.split(',')]
         
         for part in parts:
-            # Check for qubit specifications
-            if '[' in part and ']' in part:
+            # Check if this is a quantum register (affects all qubits in the register)
+            if part in self.register_info and self.register_info[part]['type'] == 'quantum':
+                register_size = self.register_info[part]['size']
+                qubits.extend(list(range(register_size)))
+            # Check if this is a classical register (affects all clbits in the register)
+            elif part in self.register_info and self.register_info[part]['type'] == 'classical':
+                register_size = self.register_info[part]['size']
+                clbits.extend(list(range(register_size)))
+            # Check for qubit specifications with brackets
+            elif '[' in part and ']' in part:
                 # Extract numbers from brackets
                 bracket_content = re.search(r'\[([^\]]+)\]', part)
                 if bracket_content:
-                    qubit_nums = [int(q.strip()) for q in bracket_content.group(1).split(',') if q.strip().isdigit()]
-                    qubits.extend(qubit_nums)
+                    nums = [int(q.strip()) for q in bracket_content.group(1).split(',') if q.strip().isdigit()]
+                    # Determine if this is a register access or just a list
+                    register_name = part.split('[')[0].strip()
+                    if register_name in self.register_info:
+                        if self.register_info[register_name]['type'] == 'quantum':
+                            qubits.extend(nums)
+                        elif self.register_info[register_name]['type'] == 'classical':
+                            clbits.extend(nums)
+                    else:
+                        qubits.extend(nums)
             elif part.isdigit():
                 qubits.append(int(part))
             else:
-                # This might be a parameter (like phi)
-                if part and not part.isspace():
+                # This might be a parameter (like phi) - only add if it's not a register name
+                if part and not part.isspace() and part not in self.register_info:
                     params.append(part)
         
         return qubits, clbits, params
@@ -531,14 +584,14 @@ class QuantumCircuitAnalyzer:
         return mapped if mapped else target_clbits
     
     def _filter_actual_parameters(self, params: List[str], circuit_vars: List[str]) -> List[str]:
-        """Filter out circuit names and keep only actual qiskit Parameters."""
+        """Filter out circuit names and register names, keep only actual qiskit Parameters."""
         filtered = []
         for param in params:
-            # Skip if it's a circuit variable name
-            if param not in circuit_vars:
+            # Skip if it's a circuit variable name or register name
+            if param not in circuit_vars and param not in self.register_info:
                 # This is a simplified check - in a real implementation, you might want to
                 # check if it's actually a qiskit.circuit.Parameter instance
-                # For now, we assume anything that's not a circuit name could be a parameter
+                # For now, we assume anything that's not a circuit name or register name could be a parameter
                 filtered.append(param)
         return filtered
     
@@ -651,9 +704,6 @@ def analyze_quantum_file(input_file: str, output_file: str = None, debug: bool =
         with open(output_file, 'w') as f:
             json.dump(results, f, indent=2)
         print(f"Results saved to {output_file}")
-
-    #import pprint
-    #pprint.pp(results)
     
     return results
 
