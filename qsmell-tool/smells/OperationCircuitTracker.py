@@ -374,24 +374,26 @@ class QuantumCircuitAnalyzer:
                     params_str = op_match.group(2)
                     
                     # Parse parameters and qubits
-                    qubits, params = self._parse_operation_params(params_str, operation_name)
+                    qubits, clbits, params = self._parse_operation_params(params_str, operation_name)
                     
                     return (line_num, line, 'direct_operation', {
                         'circuit': circuit_name,
                         'operation': operation_name,
                         'qubits': qubits,
+                        'clbits': clbits,
                         'params': params,
                         'operation_pattern': op_match.group(0)
                     })
         
         return None
     
-    def _parse_operation_params(self, params_str: str, operation_name: str = None) -> Tuple[List[int], List]:
-        """Parse operation parameters to extract qubits and other parameters."""
+    def _parse_operation_params(self, params_str: str, operation_name: str = None) -> Tuple[List[int], List[int], List]:
+        """Parse operation parameters to extract qubits, clbits, and other parameters."""
         if not params_str.strip():
-            return [], []
+            return [], [], []
         
         qubits = []
+        clbits = []
         params = []
         
         # For operations that affect all qubits, don't treat numeric parameters as qubits
@@ -401,7 +403,11 @@ class QuantumCircuitAnalyzer:
             for part in parts:
                 if part and not part.isspace():
                     params.append(part)
-            return [], params
+            return [], [], params
+        
+        # Special handling for measure operation
+        if operation_name and operation_name.lower() == 'measure':
+            return self._parse_measure_params(params_str)
         
         # Split parameters
         parts = [p.strip() for p in params_str.split(',')]
@@ -421,7 +427,7 @@ class QuantumCircuitAnalyzer:
                 if part and not part.isspace():
                     params.append(part)
         
-        return qubits, params
+        return qubits, clbits, params
     
     def _remove_comments_and_strings(self, source_code: str) -> str:
         """Remove multi-line comments (triple-quoted strings) and hash comments from source code."""
@@ -572,6 +578,59 @@ class QuantumCircuitAnalyzer:
         expanded_line = expanded_line.replace(loop_var, str(loop_iteration))
         
         return expanded_line
+    
+    def _parse_measure_params(self, params_str: str) -> Tuple[List[int], List[int], List]:
+        """Special parsing for measure operation parameters (qubit, cbit)."""
+        if not params_str.strip():
+            return [], [], []
+        
+        qubits = []
+        clbits = []
+        params = []
+        
+        # Split parameters
+        parts = [p.strip() for p in params_str.split(',')]
+        
+        if len(parts) >= 2:
+            # First parameter is qubit
+            qubit_part = parts[0]
+            if qubit_part.isdigit():
+                qubits.append(int(qubit_part))
+            elif '[' in qubit_part and ']' in qubit_part:
+                bracket_content = re.search(r'\[([^\]]+)\]', qubit_part)
+                if bracket_content:
+                    qubit_nums = [int(q.strip()) for q in bracket_content.group(1).split(',') if q.strip().isdigit()]
+                    qubits.extend(qubit_nums)
+            
+            # Second parameter is classical bit
+            clbit_part = parts[1]
+            if clbit_part.isdigit():
+                clbits.append(int(clbit_part))
+            elif '[' in clbit_part and ']' in clbit_part:
+                # Extract the index from creg[index] pattern
+                bracket_content = re.search(r'\[([^\]]+)\]', clbit_part)
+                if bracket_content:
+                    clbit_nums = [int(c.strip()) for c in bracket_content.group(1).split(',') if c.strip().isdigit()]
+                    clbits.extend(clbit_nums)
+            
+            # Any additional parameters are actual parameters
+            if len(parts) > 2:
+                for part in parts[2:]:
+                    if part and not part.isspace():
+                        params.append(part)
+        
+        elif len(parts) == 1:
+            # Only one parameter - treat as qubit
+            qubit_part = parts[0]
+            if qubit_part.isdigit():
+                qubits.append(int(qubit_part))
+            elif '[' in qubit_part and ']' in qubit_part:
+                bracket_content = re.search(r'\[([^\]]+)\]', qubit_part)
+                if bracket_content:
+                    qubit_nums = [int(q.strip()) for q in bracket_content.group(1).split(',') if q.strip().isdigit()]
+                    qubits.extend(qubit_nums)
+        
+        return qubits, clbits, params
 
 
 def analyze_quantum_file(input_file: str, output_file: str = None, debug: bool = False):
@@ -592,10 +651,13 @@ def analyze_quantum_file(input_file: str, output_file: str = None, debug: bool =
         with open(output_file, 'w') as f:
             json.dump(results, f, indent=2)
         print(f"Results saved to {output_file}")
+
+    #import pprint
+    #pprint.pp(results)
     
     return results
 
-
-"""# Example of how to use it
+"""
+# Example of how to use it
 if __name__ == "__main__":
     analyze_quantum_file("test/ROC/ROCCode.py", None, debug=False)"""

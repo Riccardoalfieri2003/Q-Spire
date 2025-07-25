@@ -1,89 +1,9 @@
 import ast
-from pathlib import Path
-from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
 from collections import defaultdict
 from smells.Detector import Detector
 from smells.IM.IM import IM
+from smells.OperationCircuitTracker import analyze_quantum_file
 
-"""
-@Detector.register(IM)
-class IMDetector(Detector):
-
-    def __init__(self, smell_cls):
-        super().__init__(smell_cls)
-        self.circuit_tracker = None
-        self.operation_tracker = None
-    
-    def detect(self, original_code, source_file=None):
-        #Execute all code segments together with proper __file__ handling
-        # Read pre and post instrumentation code from files
-        with open("smells/IM/IMInstrumentation_pre.py", "r", encoding="utf-8") as file:
-            pre_code = file.read()
-        
-        with open("smells/IM/IMInstrumentation_post.py", "r", encoding="utf-8") as file:
-            post_code = file.read()
-
-        # Create execution namespace with required variables
-        exec_namespace = {
-            'QuantumRegister': QuantumRegister,
-            'ClassicalRegister': ClassicalRegister,
-            'QuantumCircuit': QuantumCircuit,
-            'defaultdict': defaultdict,
-            'ast': ast,
-            '__file__': source_file if source_file else "<string>",  # Add this line
-            '__name__': '__main__'
-        }
-        
-        # Combine code segments
-        combined_code = '\n'.join([
-            "# --- PRE-INSTRUMENTATION CODE ---",
-            pre_code,
-            "# --- ORIGINAL CODE ---",
-            original_code,
-            "# --- POST-INSTRUMENTATION CODE ---",
-            post_code
-        ])
-
-
-        #print(combined_code)
-        
-        try:
-            exec(combined_code, exec_namespace)
-            #self.circuit_tracker = exec_namespace.get('circuit_tracker')
-            self.operation_tracker = exec_namespace.get('operation_tracker')
-
-            print(f"[DEBUG] Operations: {self.operation_tracker}")
-            return self
-
-        except Exception as e:
-            print(f"Execution error: {e}")
-            raise
-
-    def _execute_code_from_file(self, file_path):
-        #Execute Python code from a file
-        file_content = Path(file_path).read_text()
-        exec(file_content, globals())
-"""
-
-
-import ast
-from pathlib import Path
-from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
-from collections import defaultdict
-from smells.Detector import Detector
-from smells.IM.IM import IM
-
-def find_classical_registers(self, source_code):
-    tree = ast.parse(source_code)
-    self.classical_registers = set()
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            if isinstance(node.value, ast.Call):
-                if hasattr(node.value.func, 'id') and node.value.func.id == 'ClassicalRegister':
-                    for target in node.targets:
-                        if isinstance(target, ast.Name):
-                            self.classical_registers.add(target.id)
 
 @Detector.register(IM)
 class IMDetector(Detector):
@@ -94,6 +14,7 @@ class IMDetector(Detector):
         self.operation_tracker = None
         self.position_tracker = None
     
+    """
     def detect(self, original_code):
 
         smells = []
@@ -182,3 +103,40 @@ class IMDetector(Detector):
             print("Error executing combined code. Code was:")
             print(combined_code)
             raise RuntimeError(f"Execution error: {str(e)}") from e
+    """
+
+    
+
+    def detect(self, file):
+        smells = []
+
+        circuits = analyze_quantum_file(file)
+
+        for circuit_name, operations in circuits.items():
+            # Dictionary mapping qubit index to list of (index in operations list, operation dict)
+            qubit_ops = {}
+
+            for idx, op in enumerate(operations):
+                for q in op['qubits_affected']:
+                    if q not in qubit_ops:
+                        qubit_ops[q] = []
+                    qubit_ops[q].append((idx, op))
+
+            # Now check each qubit for non-terminal measurements
+            for qubit, op_list in qubit_ops.items():
+                for i, (op_idx, op) in enumerate(op_list):
+                    if op['operation_name'] == 'measure':
+                        # If this is not the last operation on this qubit → it's a smell
+                        if i < len(op_list) - 1:
+                            smell = IM(
+                                circuit_name=circuit_name,
+                                qubit=qubit,
+                                row=op.get('row'),
+                                column_start=op.get('column_start'),
+                                column_end=op.get('column_end'),
+                                explanation="",
+                                suggestion=""
+                            )
+                            smells.append(smell)
+
+        return smells
