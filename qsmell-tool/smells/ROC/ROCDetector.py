@@ -13,13 +13,8 @@ class ROCDetector(Detector):
     
 
 
-
-    
-
     from math import gcd
     from functools import reduce
-
-    
 
     def detect(self, file):
 
@@ -32,32 +27,29 @@ class ROCDetector(Detector):
         smells = []
         circuits = analyze_quantum_file(file)
 
-        import pprint
-        pprint.pp(circuits['qc'])
-
         threshold = 2  # minimum pattern size to consider
 
         for circuit_name, operations in circuits.items():
-            print(f"\n🔍 Checking circuit: {circuit_name}")
+            #print(f"\n🔍 Checking circuit: {circuit_name}")
             total_ops = len(operations)
-            print(f"Total operations: {total_ops}")
+            #print(f"Total operations: {total_ops}")
 
             if total_ops < threshold * 2:
-                print("⏭️  Skipped — not enough operations")
+                #print("⏭️  Skipped — not enough operations")
                 continue
 
             divisors = get_divisors(total_ops, threshold)
-            print(f"Valid divisors (≥ {threshold}): {divisors}")
+            #print(f"Valid divisors (≥ {threshold}): {divisors}")
 
             for d in divisors:
                 chunk_count = total_ops // d
-                print(f"\n➡️  Trying divider {d} ({chunk_count} chunks of size {d})")
+                #print(f"\n➡️  Trying divider {d} ({chunk_count} chunks of size {d})")
 
                 chunks = [operations[i * d:(i + 1) * d] for i in range(chunk_count)]
 
-                print("First chunk pattern:")
+                #print("First chunk pattern:")
                 base_pattern = extract_pattern(chunks[0])
-                print(base_pattern)
+                #print(base_pattern)
 
                 is_repeated = True
                 repeated_rows = []
@@ -65,20 +57,20 @@ class ROCDetector(Detector):
                 for i in range(1, chunk_count):
                     current_chunk = chunks[i]
                     current_pattern = extract_pattern(current_chunk)
-                    print(f"\nComparing chunk {i}:")
-                    print(current_pattern)
+                    #print(f"\nComparing chunk {i}:")
+                    #print(current_pattern)
 
                     if current_pattern != base_pattern:
-                        print("❌ Pattern mismatch found — aborting this divider.")
+                        #print("❌ Pattern mismatch found — aborting this divider.")
                         is_repeated = False
                         break
                     else:
-                        print("✅ Pattern matches.")
+                        #("✅ Pattern matches.")
                         chunk_rows = tuple(op['row'] for op in current_chunk)
                         repeated_rows.append(chunk_rows)
 
                 if is_repeated:
-                    print("🎯 Repeated pattern detected!")
+                    #print("🎯 Repeated pattern detected!")
                     smell = ROC(
                         operations=base_pattern,
                         repetitions=chunk_count - 1,
@@ -89,28 +81,3 @@ class ROCDetector(Detector):
                     break  # Only detect one ROC per circuit
 
         return smells
-
-
-
-
-"""
-[
-    {'operation_name': 'rx', 'qubits_affected': [0], 'clbits_affected': [], 'row': 34, 'column_start': 8, 'column_end': 34, 'source_line': 'qc.append( hadamard, [j] )', 'params': ['phi']}, 
-    {'operation_name': 'z', 'qubits_affected': [0], 'clbits_affected': [], 'row': 35, 'column_start': 8, 'column_end': 15, 'source_line': 'qc.z(0)'}, 
-    {'operation_name': 'rx', 'qubits_affected': [1], 'clbits_affected': [], 'row': 34, 'column_start': 8, 'column_end': 34, 'source_line': 'qc.append( hadamard, [j] )', 'params': ['phi']}, 
-    {'operation_name': 'z', 'qubits_affected': [0], 'clbits_affected': [], 'row': 35, 'column_start': 8, 'column_end': 15, 'source_line': 'qc.z(0)'}, 
-    {'operation_name': 'rx', 'qubits_affected': [2], 'clbits_affected': [], 'row': 34, 'column_start': 8, 'column_end': 34, 'source_line': 'qc.append( hadamard, [j] )', 'params': ['phi']}, 
-    {'operation_name': 'z', 'qubits_affected': [0], 'clbits_affected': [], 'row': 35, 'column_start': 8, 'column_end': 15, 'source_line': 'qc.z(0)'}, 
-    {'operation_name': 'rx', 'qubits_affected': [0], 'clbits_affected': [], 'row': 34, 'column_start': 8, 'column_end': 34, 'source_line': 'qc.append( hadamard, [j] )', 'params': ['phi']}, 
-    {'operation_name': 'z', 'qubits_affected': [0], 'clbits_affected': [], 'row': 35, 'column_start': 8, 'column_end': 15, 'source_line': 'qc.z(0)'}, 
-    {'operation_name': 'rx', 'qubits_affected': [1], 'clbits_affected': [], 'row': 34, 'column_start': 8, 'column_end': 34, 'source_line': 'qc.append( hadamard, [j] )', 'params': ['phi']}, 
-    {'operation_name': 'z', 'qubits_affected': [0], 'clbits_affected': [], 'row': 35, 'column_start': 8, 'column_end': 15, 'source_line': 'qc.z(0)'}, 
-    {'operation_name': 'rx', 'qubits_affected': [2], 'clbits_affected': [], 'row': 34, 'column_start': 8, 'column_end': 34, 'source_line': 'qc.append( hadamard, [j] )', 'params': ['phi']}, 
-    {'operation_name': 'z', 'qubits_affected': [0], 'clbits_affected': [], 'row': 35, 'column_start': 8, 'column_end': 15, 'source_line': 'qc.z(0)'}, 
-
-    {'operation_name': 'rx', 'qubits_affected': [0], 'clbits_affected': [], 'row': 34, 'column_start': 8, 'column_end': 34, 'source_line': 'qc.append( hadamard, [j] )', 'params': ['phi']}, 
-    {'operation_name': 'z', 'qubits_affected': [0], 'clbits_affected': [], 'row': 35, 'column_start': 8, 'column_end': 15, 'source_line': 'qc.z(0)'}, 
-    {'operation_name': 'rx', 'qubits_affected': [1], 'clbits_affected': [], 'row': 34, 'column_start': 8, 'column_end': 34, 'source_line': 'qc.append( hadamard, [j] )', 'params': ['phi']}, 
-    {'operation_name': 'z', 'qubits_affected': [0], 'clbits_affected': [], 'row': 35, 'column_start': 8, 'column_end': 15, 'source_line': 'qc.z(0)'}, {'operation_name': 'rx', 'qubits_affected': [2], 'clbits_affected': [], 'row': 34, 'column_start': 8, 'column_end': 34, 'source_line': 'qc.append( hadamard, [j] )', 'params': ['phi']}, {'operation_name': 'z', 'qubits_affected': [0], 'clbits_affected': [], 'row': 35, 'column_start': 8, 'column_end': 15, 'source_line': 'qc.z(0)'}]
-
-"""
