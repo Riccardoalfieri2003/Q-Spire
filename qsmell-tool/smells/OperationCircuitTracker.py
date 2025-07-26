@@ -7,13 +7,7 @@ import importlib.util
 import copy
 
 """
-Unica cosa da cambiare: 
-- i qubit dell'operazione barrier (in generale quelle che non hanno qubit come argomento, e che colpiscono tutti)
-- columns della detection (le rows vanno bene)
-"""
-
-"""
-Improved QuantumCircuitAnalyzer that tracks dynamic subcircuit construction
+Fixed QuantumCircuitAnalyzer that properly handles measurements in nested loops
 """
 
 class QuantumCircuitAnalyzer:
@@ -165,31 +159,46 @@ class QuantumCircuitAnalyzer:
                     elif hasattr(circuit, 'qubits'):
                         self.circuit_sizes[var_name] = len(circuit.qubits)
         
+        # Initialize subcircuit states - start empty, will be built dynamically
+        for var_name in circuit_vars:
+            subcircuit_snapshots[var_name] = []
+        
         # Now simulate the execution step by step
         operation_lines = self._extract_operation_sequence(cleaned_source_code, circuit_vars)
         
         if debug:
             print(f"Found {len(operation_lines)} operation lines")
             for i, (line_num, line, op_type, details) in enumerate(operation_lines):
-                print(f"  {i}: Line {line_num + 1}: {line.strip()} -> {op_type}")
-        
-        # Initialize subcircuit states
-        for var_name in circuit_vars:
-            subcircuit_snapshots[var_name] = []  # List of operations at each point in time
+                print(f"  {i}: Line {line_num + 1}: {line.strip()} -> {op_type} -> {details}")
+            
+            print(f"\nSubcircuit snapshots:")
+            for name, ops in subcircuit_snapshots.items():
+                print(f"  {name}: {len(ops)} operations")
+                for op in ops:
+                    print(f"    - {op}")
         
         # Process each operation in sequence
         for line_num, line, op_type, details in operation_lines:
+            if debug:
+                print(f"Processing: Line {line_num + 1}: {line.strip()} -> {op_type}")
+                if op_type == 'append':
+                    subcircuit_name = details['subcircuit']
+                    print(f"  Subcircuit '{subcircuit_name}' has {len(subcircuit_snapshots.get(subcircuit_name, []))} operations")
+            
             if op_type == 'append':
                 # Handle append operations
                 main_circuit = details['main_circuit']
                 subcircuit_name = details['subcircuit']
                 qubits = details.get('qubits', [])
+                clbits = details.get('clbits', [])
                 
                 # Get current state of the subcircuit
                 current_subcircuit_ops = subcircuit_snapshots.get(subcircuit_name, [])
                 
                 if debug:
-                    print(f"Appending {subcircuit_name} (with {len(current_subcircuit_ops)} ops) to {main_circuit} on qubits {qubits}")
+                    print(f"Appending {subcircuit_name} (with {len(current_subcircuit_ops)} ops) to {main_circuit} on qubits {qubits}, clbits {clbits}")
+                    for op in current_subcircuit_ops:
+                        print(f"    - {op}")
                 
                 # Add operations from the current state of the subcircuit
                 for sub_op in current_subcircuit_ops:
@@ -197,7 +206,7 @@ class QuantumCircuitAnalyzer:
                     mapped_qubits = self._map_qubits(sub_op['qubits_affected'], qubits)
                     
                     # Map subcircuit clbits to main circuit clbits (if any)
-                    mapped_clbits = self._map_clbits(sub_op.get('clbits_affected', []), details.get('clbits', []))
+                    mapped_clbits = self._map_clbits(sub_op.get('clbits_affected', []), clbits)
                     
                     # Get proper column positions from the actual source line
                     actual_line = lines[line_num] if line_num < len(lines) else ''
@@ -227,6 +236,7 @@ class QuantumCircuitAnalyzer:
                 circuit_name = details['circuit']
                 operation_name = details['operation']
                 qubits = details.get('qubits', [])
+                clbits = details.get('clbits', [])
                 params = details.get('params', [])
                 
                 # Handle operations that affect all qubits when no specific qubits are given
@@ -241,7 +251,7 @@ class QuantumCircuitAnalyzer:
                 operation_info = {
                     'operation_name': operation_name,
                     'qubits_affected': qubits,
-                    'clbits_affected': details.get('clbits', []),
+                    'clbits_affected': clbits,
                     'row': line_num + 1,
                     'column_start': column_start,
                     'column_end': column_end,
@@ -255,13 +265,29 @@ class QuantumCircuitAnalyzer:
                     if filtered_params:
                         operation_info['params'] = filtered_params
                 
-                # Add to the appropriate circuit
+                # DYNAMIC TRACKING: If this operation is on a subcircuit, add it to the subcircuit's state
+                if circuit_name in subcircuit_snapshots:
+                    subcircuit_op_info = {
+                        'operation_name': operation_name,
+                        'qubits_affected': qubits,
+                        'clbits_affected': clbits
+                    }
+                    
+                    # Add params to subcircuit operation info too
+                    if params and not self._is_operation_without_params(operation_name):
+                        filtered_params = self._filter_actual_parameters(params, circuit_vars)
+                        if filtered_params:
+                            subcircuit_op_info['params'] = filtered_params
+                    
+                    subcircuit_snapshots[circuit_name].append(subcircuit_op_info)
+                    
+                    if debug:
+                        print(f"  Added operation to subcircuit '{circuit_name}': {subcircuit_op_info}")
+                        print(f"  Subcircuit '{circuit_name}' now has {len(subcircuit_snapshots[circuit_name])} operations")
+                
+                # Add to the appropriate circuit - but only if it's the main circuit or if we're tracking all operations
                 if circuit_name in results:
                     results[circuit_name].append(operation_info)
-                
-                # If this is a subcircuit, also track its state
-                if circuit_name in subcircuit_snapshots:
-                    subcircuit_snapshots[circuit_name].append(operation_info)
         
         return results
     
@@ -317,19 +343,33 @@ class QuantumCircuitAnalyzer:
         return operations
     
     def _process_lines_with_loops(self, lines: List[str], circuit_vars: List[str]) -> List[Tuple[int, str, str, Dict]]:
-        """Process lines and expand loops to track execution sequence."""
+        """Process lines and expand loops to track execution sequence, handling nested loops."""
         operations = []
+        expanded_lines = self._expand_nested_loops(lines, {})
+        
+        for line_info in expanded_lines:
+            line_num, expanded_line, variable_context = line_info
+            op_info = self._parse_operation_line(expanded_line, line_num, circuit_vars)
+            if op_info:
+                operations.append(op_info)
+        
+        return operations
+    
+    def _expand_nested_loops(self, lines: List[str], outer_vars: Dict[str, int]) -> List[Tuple[int, str, Dict]]:
+        """Recursively expand nested loops and return list of (line_num, expanded_line, variable_context)."""
+        expanded_lines = []
         i = 0
         
         while i < len(lines):
-            line = lines[i].strip()
+            line = lines[i]
+            stripped_line = line.strip()
             
-            if not line or line.startswith('#'):
+            if not stripped_line or stripped_line.startswith('#'):
                 i += 1
                 continue
             
-            # Check for for loops
-            for_match = re.match(r'for\s+(\w+)\s+in\s+range\s*\(\s*(\d+)\s*\)\s*:', line)
+            # Check for for loops - FIXED: Better regex pattern
+            for_match = re.match(r'for\s+(\w+)\s+in\s+range\s*\(\s*(\d+)\s*\)\s*:', stripped_line)
             if for_match:
                 loop_var = for_match.group(1)
                 loop_count = int(for_match.group(2))
@@ -339,28 +379,37 @@ class QuantumCircuitAnalyzer:
                 loop_body_end = self._find_loop_end(lines, i)
                 loop_body = lines[loop_body_start:loop_body_end]
                 
-                # Expand the loop
+                # Expand the loop for each iteration
                 for loop_iteration in range(loop_count):
-                    for body_line_idx, body_line in enumerate(loop_body):
-                        # Replace loop variable with current iteration value and evaluate expressions
-                        expanded_line = self._expand_loop_variables(body_line, loop_var, loop_iteration)
-                        
-                        actual_line_num = loop_body_start + body_line_idx
-                        op_info = self._parse_operation_line(expanded_line, actual_line_num, circuit_vars)
-                        if op_info:
-                            operations.append(op_info)
+                    # Create new variable context including this loop variable
+                    current_vars = outer_vars.copy()
+                    current_vars[loop_var] = loop_iteration
+                    
+                    # Recursively process the loop body (handles nested loops)
+                    nested_expanded = self._expand_nested_loops(loop_body, current_vars)
+                    
+                    # Add all expanded lines from this iteration
+                    for nested_line_offset, nested_expanded_line, nested_context in nested_expanded:
+                        actual_line_num = loop_body_start + nested_line_offset
+                        expanded_lines.append((actual_line_num, nested_expanded_line, current_vars))
                 
                 i = loop_body_end
                 continue
             
-            # Process regular lines
-            op_info = self._parse_operation_line(line, i, circuit_vars)
-            if op_info:
-                operations.append(op_info)
+            # Process regular lines (not loop headers)
+            if outer_vars:
+                # Apply variable substitutions from all outer loops
+                expanded_line = line
+                for var_name, var_value in outer_vars.items():
+                    expanded_line = self._expand_loop_variables(expanded_line, var_name, var_value)
+                expanded_lines.append((i, expanded_line, outer_vars))
+            else:
+                # No loop variables to substitute
+                expanded_lines.append((i, line, {}))
             
             i += 1
         
-        return operations
+        return expanded_lines
     
     def _find_loop_end(self, lines: List[str], loop_start: int) -> int:
         """Find the end of a loop body based on indentation."""
@@ -384,17 +433,52 @@ class QuantumCircuitAnalyzer:
         """Parse a single line to extract operation information."""
         line_stripped = line.strip()
         
+        # Skip empty lines and comments
+        if not line_stripped or line_stripped.startswith('#'):
+            return None
+        
         for circuit_name in circuit_vars:
             if circuit_name in line_stripped:
-                # Check for append operations
-                append_match = re.search(rf'{re.escape(circuit_name)}\.append\s*\(\s*(\w+)\s*,\s*\[([^\]]+)\](?:\s*,\s*\[([^\]]*)\])?\s*\)', line_stripped)
+                # Check for append operations - IMPROVED REGEX to handle various append formats
+                # This handles: circuit.append(subcircuit, [qubits]) and circuit.append(subcircuit, [qubits], [clbits])
+                append_pattern = rf'{re.escape(circuit_name)}\.append\s*\(\s*(\w+)\s*,\s*\[([^\]]*)\](?:\s*,\s*\[([^\]]*)\])?\s*\)'
+                append_match = re.search(append_pattern, line_stripped)
                 if append_match:
                     subcircuit_name = append_match.group(1)
                     qubits_str = append_match.group(2)
-                    clbits_str = append_match.group(3) if append_match.group(3) else ""
+                    clbits_str = append_match.group(3) if append_match.group(3) is not None else ""
                     
-                    qubits = [int(q.strip()) for q in qubits_str.split(',') if q.strip().isdigit()]
-                    clbits = [int(c.strip()) for c in clbits_str.split(',') if c.strip().isdigit()] if clbits_str else []
+                    # Parse qubits - handle both numbers and variables (which should already be expanded)
+                    qubits = []
+                    if qubits_str.strip():
+                        for q in qubits_str.split(','):
+                            q = q.strip()
+                            if q.isdigit():
+                                qubits.append(int(q))
+                            else:
+                                # Try to evaluate as a simple expression or number
+                                try:
+                                    result = int(eval(q, {"__builtins__": {}}, {}))
+                                    qubits.append(result)
+                                except:
+                                    print(f"Warning: Could not parse qubit '{q}' in line: {line_stripped}")
+                                    qubits.append(0)  # Default fallback
+                    
+                    # Parse clbits - handle both numbers and variables (which should already be expanded)
+                    clbits = []
+                    if clbits_str.strip():
+                        for c in clbits_str.split(','):
+                            c = c.strip()
+                            if c.isdigit():
+                                clbits.append(int(c))
+                            else:
+                                # Try to evaluate as a simple expression or number
+                                try:
+                                    result = int(eval(c, {"__builtins__": {}}, {}))
+                                    clbits.append(result)
+                                except:
+                                    print(f"Warning: Could not parse clbit '{c}' in line: {line_stripped}")
+                                    clbits.append(0)  # Default fallback
                     
                     return (line_num, line, 'append', {
                         'main_circuit': circuit_name,
@@ -442,7 +526,7 @@ class QuantumCircuitAnalyzer:
                     params.append(part)
             return [], [], params
         
-        # Special handling for measure operation
+        # Special handling for measure operation - FIXED
         if operation_name and operation_name.lower() == 'measure':
             return self._parse_measure_params(params_str)
         
@@ -604,9 +688,11 @@ class QuantumCircuitAnalyzer:
         return operation_name.lower() in operations_without_params
     
     def _expand_loop_variables(self, line: str, loop_var: str, loop_iteration: int) -> str:
-        """Expand loop variables and evaluate mathematical expressions."""
-        # Replace loop variable in brackets and parentheses
-        expanded_line = line.replace(f'[{loop_var}]', f'[{loop_iteration}]')
+        """Expand loop variables and evaluate mathematical expressions - FIXED to avoid replacing inside variable names."""
+        expanded_line = line
+        
+        # Replace loop variable in brackets and parentheses FIRST (most specific)
+        expanded_line = expanded_line.replace(f'[{loop_var}]', f'[{loop_iteration}]')
         expanded_line = expanded_line.replace(f'({loop_var})', f'({loop_iteration})')
         
         # Find and evaluate mathematical expressions containing the loop variable
@@ -627,13 +713,15 @@ class QuantumCircuitAnalyzer:
         
         expanded_line = re.sub(pattern, evaluate_expression, expanded_line)
         
-        # Also handle simple variable replacements not caught by the pattern
-        expanded_line = expanded_line.replace(loop_var, str(loop_iteration))
+        # FIXED: Only replace standalone loop variables, not those inside other words
+        # Use word boundaries to avoid replacing parts of variable names
+        standalone_pattern = rf'\b{re.escape(loop_var)}\b'
+        expanded_line = re.sub(standalone_pattern, str(loop_iteration), expanded_line)
         
         return expanded_line
     
     def _parse_measure_params(self, params_str: str) -> Tuple[List[int], List[int], List]:
-        """Special parsing for measure operation parameters (qubit, cbit)."""
+        """Special parsing for measure operation parameters (qubit, cbit). FIXED VERSION."""
         if not params_str.strip():
             return [], [], []
         
@@ -654,6 +742,10 @@ class QuantumCircuitAnalyzer:
                 if bracket_content:
                     qubit_nums = [int(q.strip()) for q in bracket_content.group(1).split(',') if q.strip().isdigit()]
                     qubits.extend(qubit_nums)
+            elif qubit_part in self.register_info and self.register_info[qubit_part]['type'] == 'quantum':
+                # Handle quantum register
+                register_size = self.register_info[qubit_part]['size']
+                qubits.extend(list(range(register_size)))
             
             # Second parameter is classical bit
             clbit_part = parts[1]
@@ -665,6 +757,10 @@ class QuantumCircuitAnalyzer:
                 if bracket_content:
                     clbit_nums = [int(c.strip()) for c in bracket_content.group(1).split(',') if c.strip().isdigit()]
                     clbits.extend(clbit_nums)
+            elif clbit_part in self.register_info and self.register_info[clbit_part]['type'] == 'classical':
+                # Handle classical register
+                register_size = self.register_info[clbit_part]['size']
+                clbits.extend(list(range(register_size)))
             
             # Any additional parameters are actual parameters
             if len(parts) > 2:
@@ -682,6 +778,10 @@ class QuantumCircuitAnalyzer:
                 if bracket_content:
                     qubit_nums = [int(q.strip()) for q in bracket_content.group(1).split(',') if q.strip().isdigit()]
                     qubits.extend(qubit_nums)
+            elif qubit_part in self.register_info and self.register_info[qubit_part]['type'] == 'quantum':
+                # Handle quantum register
+                register_size = self.register_info[qubit_part]['size']
+                qubits.extend(list(range(register_size)))
         
         return qubits, clbits, params
 
@@ -704,10 +804,5 @@ def analyze_quantum_file(input_file: str, output_file: str = None, debug: bool =
         with open(output_file, 'w') as f:
             json.dump(results, f, indent=2)
         print(f"Results saved to {output_file}")
-    
-    return results
 
-"""
-# Example of how to use it
-if __name__ == "__main__":
-    analyze_quantum_file("test/ROC/ROCCode.py", None, debug=False)"""
+    return results

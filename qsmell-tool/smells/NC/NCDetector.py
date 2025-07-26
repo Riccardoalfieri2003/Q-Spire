@@ -250,7 +250,7 @@ class NCDetector(Detector):
         # Collect runtime info
         call_info = globals_dict['get_call_info']()
 
-        print("[DEBUG] call_info:", call_info)
+        #print("[DEBUG] call_info:", call_info)
 
         # Detect smells
         run_calls = call_info.get('run_calls', [])
