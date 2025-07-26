@@ -15,15 +15,11 @@ def test_custom_gate_detector():
         python -m test.LPQ.LPQTest
         
     """
-    
-    # Example quantum code with custom gates
-    with open("test/LPQ/LPQCode.py", "r", encoding="utf-8") as file:
-        test_code = file.read()    
 
-
+    file="test/LPQ/LPQCode.py"
     
     detector = Detector(LPQ)
-    smel=detector.detect(test_code)
+    smel=detector.detect(file)
 
     for smell in smel:
         print(smell.as_dict())

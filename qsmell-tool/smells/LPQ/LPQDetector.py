@@ -14,7 +14,11 @@ class LPQDetector(Detector, ast.NodeVisitor):
         self.transpile_calls = []
         self.transpile_aliases = set(["transpile"])  # starts with the real name
 
-    def detect(self, code: str) -> list[LPQ]:
+    def detect(self, file: str) -> list[LPQ]:
+
+        with open(file, "r", encoding="utf-8") as file:
+            code = file.read()    
+
         # Parse and visit AST
         tree = ast.parse(code)
         self.visit(tree)
