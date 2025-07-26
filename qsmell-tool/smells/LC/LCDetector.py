@@ -112,7 +112,11 @@ def get_max_gate_error(backend_properties) -> dict:
 @Detector.register(LC)
 class LCDetector(Detector):
 
-    def detect(self, source_code):
+    def detect(self, file):
+
+        with open(file, "r", encoding="utf-8") as file:
+            source_code = file.read()  
+
         # 1. Load instrumentation code from file
         with open("smells/LC/LCinstrumentation.py") as f:
             instrumentation_code = f.read()
