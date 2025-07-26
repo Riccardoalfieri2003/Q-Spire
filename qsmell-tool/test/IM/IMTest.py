@@ -16,7 +16,6 @@ def test_custom_gate_detector():
         
     """
 
-
     file="test/IM/IMCode.py"
         
     detector = Detector(IM)
