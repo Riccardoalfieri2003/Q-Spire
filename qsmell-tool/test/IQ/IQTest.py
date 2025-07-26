@@ -16,12 +16,7 @@ def test_custom_gate_detector():
         
     """
     
-    # Example quantum code with custom gates
     file="test/IQ/IQCode.py"
-    """with open("test/IQ/IQCode.py", "r") as file:
-        test_code = file.read()    """
-
-
     
     detector = Detector(IQ)
     smel=detector.detect(file)
