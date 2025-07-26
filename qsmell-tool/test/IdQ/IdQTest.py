@@ -18,8 +18,8 @@ def test_custom_gate_detector():
     detector = Detector(IdQ)
     smel=detector.detect(file)
 
-    for smell in smel:
-        print(smell.as_dict())
+    #for smell in smel:
+    #    print(smell.as_dict())
 
 if __name__ == "__main__":
     test_custom_gate_detector()

@@ -125,9 +125,14 @@ class LCDetector(Detector):
         with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as tmp:
             tmp_path = tmp.name
             tmp.write(textwrap.dedent(instrumentation_code) + "\n")
+            tmp.write("# Clear any previous state\n")
+            tmp.write("clear_run_log()\n")
+            tmp.write("# Execute the user code\n")
             tmp.write(textwrap.dedent(source_code) + "\n")
+            tmp.write("# Store the results\n")
             tmp.write("import builtins\n")
-            tmp.write("builtins.__run_log_result__ = get_run_log()\n")  # Store result in builtins
+            tmp.write("print(f'Run log before storing: {get_run_log()}')\n")
+            tmp.write("builtins.__run_log_result__ = get_run_log()\n")
 
         try:
             # 3. Run combined code
@@ -145,7 +150,7 @@ class LCDetector(Detector):
         # 4. Extract runtime circuit info
         smells = []
 
-        for circuit, backend in run_log:
+        for circuit, backend, circuit_name in run_log:  # Now unpacking three values
 
             max_gate_error=get_max_gate_error(backend.properties()) # this is the max error of the active gates of the backed
             (gate_name, error_value), = max_gate_error.items()  # Note the comma after the tuple!
@@ -158,7 +163,6 @@ class LCDetector(Detector):
             # Heuristic thresholds — adjust as needed
             if likelihood<0.5:
                 
-                circuit_name = get_variable_name(circuit) or circuit.name
                 backend_class_name = backend.__class__.__name__ 
 
                 smell = LC(
@@ -167,7 +171,7 @@ class LCDetector(Detector):
                     l=l,
                     c=c,
                     backend=backend_class_name,
-                    circuit_name=circuit_name,
+                    circuit_name=circuit_name,  # Use the captured name
                     explanation="",
                     suggestion=""
                 )
