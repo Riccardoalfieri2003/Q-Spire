@@ -47,7 +47,11 @@ class CGDetector(Detector, ast.NodeVisitor):
         self.assignments = {}
         self.matrixes = []  # <-- added: will store unique concrete matrixes
 
-    def detect(self, code: str) -> list[CG]:
+    def detect(self, file: str) -> list[CG]:
+
+        with open(file, "r", encoding="utf-8") as file:
+            code = file.read()    
+
         smells = []
 
         class UnitaryCallVisitor(ast.NodeVisitor):

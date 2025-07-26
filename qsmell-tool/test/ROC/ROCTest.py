@@ -13,7 +13,6 @@ def test_custom_gate_detector():
         
     """
     
-    # Example quantum code with custom gates
     file="test/ROC/ROCCode.py"
     
     detector = Detector(ROC)

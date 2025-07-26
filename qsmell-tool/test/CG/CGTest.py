@@ -15,15 +15,11 @@ def test_custom_gate_detector():
         python -m test.CG.CGTest
         
     """
-    
-    # Example quantum code with custom gates
-    with open("test/CG/CGCode.py", "r", encoding="utf-8") as file:
-        test_code = file.read()    
 
-
+    file="test/CG/CGCode.py"
     
     detector = Detector(CG)
-    smel=detector.detect(test_code)
+    smel=detector.detect(file)
 
     for smell in smel:
         print(smell.as_dict())
