@@ -22,9 +22,7 @@ def test_detector():
     smel=detector.detect(file)
 
     for smell in smel:
-        import pprint
-        pprint.pp(smell.as_dict())
-        print()
+        print(smell.as_dict())
 
 if __name__ == "__main__":
     test_detector()
