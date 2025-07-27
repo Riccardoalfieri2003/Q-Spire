@@ -5,7 +5,7 @@ from smells.IQ.IQ import IQ
 
 
 
-def test_custom_gate_detector():
+def test_detector():
     """
         Test the custom gate detector with example code.
     
@@ -25,4 +25,4 @@ def test_custom_gate_detector():
         print(smell.as_dict())
 
 if __name__ == "__main__":
-    test_custom_gate_detector()
+    test_detector()

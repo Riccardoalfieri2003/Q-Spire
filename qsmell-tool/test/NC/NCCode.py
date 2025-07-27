@@ -34,12 +34,11 @@ from qiskit import transpile
 from qiskit.circuit import Parameter
 theta=Parameter('0')
 
-qc=init_circuit(theta)
+qc2=init_circuit(theta)
 
-circuits=[qc.assign_parameters({theta:theta_val}) for theta_val in theta_range]
+circuits=[qc2.assign_parameters({theta:theta_val}) for theta_val in theta_range]
 backend= AerSimulator()
 job= backend.run(transpile(circuits,backend))
 job.result().get_counts()
 
-
-job = backend.run(qc)
+job = backend.run(qc2)

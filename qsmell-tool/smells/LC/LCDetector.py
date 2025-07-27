@@ -10,21 +10,12 @@ from qiskit import QuantumCircuit
 from smells.Detector import Detector
 
 from smells.LC.LC import LC
+from smells.utils.OperationCircuitTracker import analyze_quantum_file
+from smells.utils.BackendAnalyzer import analyze_circuits_backends_runs
 
-def get_variable_name(obj, max_depth=5):
-    """Try to find the variable name referring to `obj` from caller stack frames."""
-    obj_id = id(obj)
-    for frame_info in inspect.stack()[1:max_depth]:
-        frame = frame_info.frame
-        for var_name, var_val in frame.f_locals.items():
-            if id(var_val) == obj_id:
-                return var_name
-        for var_name, var_val in frame.f_globals.items():
-            if id(var_val) == obj_id:
-                return var_name
-    return None
+import math
+from typing import Dict, List, Tuple, Any
 
-# max parallel operations
 def max_parallelism(circuit):
     """Calculate the maximum number of parallel operations in the circuit."""
     moments = []
@@ -40,51 +31,43 @@ def max_parallelism(circuit):
             moments.append(set(qindices))
     return max(len(m) for m in moments) if moments else 0
 
-
 def max_operations_per_qubit(circuit: QuantumCircuit) -> int:
     """Calculate the maximum number of operations on any single qubit in the circuit."""
     qubit_counts = [0] * circuit.num_qubits
-    
+
     for instruction, qargs, _ in circuit.data:
         for qubit in qargs:
             qubit_index = qubit._index
             qubit_counts[qubit_index] += 1
-    
+
     return max(qubit_counts)
-
-
-
-from collections import defaultdict
 
 def get_max_gate_errors(backend_properties) -> dict:
     """
-    Returns a dictionary of maximum error rates for all active gates.
-    Format: {'gate_name': max_error}
-    Includes both quantum gates and measurement errors.
+    Returns a dictionary with all gates and their maximum error rates.
     """
-    # Initialize dictionary to store errors for each gate type
-    gate_errors = defaultdict(list)
+    if backend_properties is None:
+        return {}
     
-    # Process all quantum gates
+    gate_errors = {}
+    
+    # Iterate through all gates in the backend properties
     for gate in backend_properties.gates:
-        # Get the error parameter (assuming it's the first parameter)
-        if gate.parameters and hasattr(gate.parameters[0], 'value'):
-            gate_errors[gate.gate].append(gate.parameters[0].value)
+        gate_name = gate.gate
+        
+        # Find the gate_error parameter for this gate
+        for param in gate.parameters:
+            if param.name == 'gate_error':
+                error_value = param.value
+                
+                # Keep track of the maximum error for each gate type
+                if gate_name not in gate_errors:
+                    gate_errors[gate_name] = error_value
+                else:
+                    gate_errors[gate_name] = max(gate_errors[gate_name], error_value)
+                break
     
-    # Add measurement errors (readout errors)
-    if backend_properties.qubits:
-        readout_errors = []
-        for qubit_props in backend_properties.qubits:
-            # Find the readout error property (typically index 3)
-            for prop in qubit_props:
-                if getattr(prop, 'name', '') == 'readout_error':
-                    readout_errors.append(prop.value)
-                    break
-        if readout_errors:
-            gate_errors['measure'] = readout_errors
-    
-    # Calculate maximum error for each gate type
-    return {gate: max(errors) for gate, errors in gate_errors.items() if errors}
+    return gate_errors
 
 def get_max_gate_error(backend_properties) -> dict:
     """
@@ -92,7 +75,7 @@ def get_max_gate_error(backend_properties) -> dict:
     Format: {'gate_name': max_error}
     """
     # Get all gate errors
-    all_errors = get_max_gate_errors(backend_properties)  # Using our previous function
+    all_errors = get_max_gate_errors(backend_properties)
     
     if not all_errors:
         return {}
@@ -102,6 +85,172 @@ def get_max_gate_error(backend_properties) -> dict:
     
     return {max_gate[0]: max_gate[1]}
 
+def map_circuits_to_backends(circuits: Dict[str, Any], backends: Dict[str, Dict], runs: List[Dict]) -> List[Tuple]:
+    """
+    Map circuits to backends based on run executions, similar to your original run_log format.
+    
+    Returns:
+        List of tuples (circuit, backend_instance, circuit_name)
+    """
+    mapped_runs = []
+    
+    for run in runs:
+        backend_var = run['backend_variable']
+        circuits_used = run['circuits_used']
+        
+        # Get the backend instance
+        if backend_var in backends and 'instance' in backends[backend_var]:
+            backend_instance = backends[backend_var]['instance']
+            
+            # Map each circuit used in this run
+            for circuit_name in circuits_used:
+                if circuit_name in circuits:
+                    circuit = circuits[circuit_name]
+                    mapped_runs.append((circuit, backend_instance, circuit_name))
+    
+    return mapped_runs
+
+def detect_with_new_analyzer(self, file):
+    """
+    Updated detect function using the new analyzer.
+    """
+    smells = []
+    circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
+    
+    # Map circuits to backends based on runs (similar to your original run_log)
+    circuit_backend_mappings = map_circuits_to_backends(circuits, backends, runs)
+    
+    for circuit, backend, circuit_name in circuit_backend_mappings:
+        try:
+            # Get backend properties
+            backend_properties = backend.properties()
+            if backend_properties is None:
+                continue
+                
+            # Get max gate error
+            max_gate_error = get_max_gate_error(backend_properties)
+            if not max_gate_error:
+                continue
+                
+            (gate_name, error_value), = max_gate_error.items()
+            
+            # Calculate your metrics
+            l = max_operations_per_qubit(circuit)
+            c = max_parallelism(circuit)
+            
+            likelihood = math.pow(1 - error_value, l * c)
+            
+            # Heuristic thresholds — adjust as needed
+            if likelihood < 0.5:
+                backend_class_name = backend.__class__.__name__
+                
+                smell = LC(
+                    likelihood=likelihood,
+                    error=max_gate_error,
+                    l=l,
+                    c=c,
+                    backend=backend_class_name,
+                    circuit_name=circuit_name,
+                    explanation="",
+                    suggestion=""
+                )
+                
+                smells.append(smell)
+                
+        except Exception as e:
+            print(f"Error processing circuit {circuit_name} with backend: {e}")
+            continue
+    
+    return smells
+
+# Alternative approach: Direct iteration over runs
+def detect_alternative_approach(self, file):
+    """
+    Alternative approach: iterate directly over runs and get corresponding circuits/backends.
+    """
+    smells = []
+    circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
+    
+    for run in runs:
+        backend_var = run['backend_variable']
+        circuits_used = run['circuits_used']
+        
+        # Get the backend instance and info
+        if backend_var not in backends or 'instance' not in backends[backend_var]:
+            continue
+            
+        backend_instance = backends[backend_var]['instance']
+        
+        try:
+            # Get backend properties
+            backend_properties = backend_instance.properties()
+            if backend_properties is None:
+                continue
+                
+            # Get max gate error
+            max_gate_error = get_max_gate_error(backend_properties)
+            if not max_gate_error:
+                continue
+                
+            (gate_name, error_value), = max_gate_error.items()
+            
+            # Process each circuit used in this run
+            for circuit_name in circuits_used:
+                if circuit_name not in circuits:
+                    continue
+                    
+                circuit = circuits[circuit_name]
+                
+                # Calculate your metrics
+                l = max_operations_per_qubit(circuit)
+                c = max_parallelism(circuit)
+                
+                likelihood = math.pow(1 - error_value, l * c)
+                
+                # Heuristic thresholds — adjust as needed
+                if likelihood < 0.5:
+                    backend_class_name = backend_instance.__class__.__name__
+                    
+                    smell = LC(
+                        likelihood=likelihood,
+                        error=max_gate_error,
+                        l=l,
+                        c=c,
+                        backend=backend_class_name,
+                        circuit_name=circuit_name,
+                        explanation="",
+                        suggestion=""
+                    )
+                    
+                    smells.append(smell)
+                    
+        except Exception as e:
+            print(f"Error processing run with backend {backend_var}: {e}")
+            continue
+    
+    return smells
+
+# Example of how to access backend information
+def explore_backend_structure(backends: Dict[str, Dict]):
+    """
+    Helper function to explore the structure of backends dictionary.
+    """
+    for backend_name, backend_info in backends.items():
+        print(f"\nBackend: {backend_name}")
+        print(f"  Keys: {list(backend_info.keys())}")
+        
+        if 'instance' in backend_info:
+            backend_instance = backend_info['instance']
+            print(f"  Instance type: {type(backend_instance).__name__}")
+            print(f"  Has properties method: {hasattr(backend_instance, 'properties')}")
+            
+            try:
+                props = backend_instance.properties()
+                print(f"  Properties available: {props is not None}")
+                if props:
+                    print(f"  Number of gates: {len(props.gates) if hasattr(props, 'gates') else 'N/A'}")
+            except Exception as e:
+                print(f"  Error getting properties: {e}")
 
 
 
@@ -112,6 +261,7 @@ def get_max_gate_error(backend_properties) -> dict:
 @Detector.register(LC)
 class LCDetector(Detector):
 
+    """
     def detect(self, file):
 
         with open(file, "r", encoding="utf-8") as file:
@@ -178,5 +328,49 @@ class LCDetector(Detector):
 
                 smells.append(smell)
             
+        return smells
+        """
+    
+    def detect(self, file):
 
+        smells = []        
+
+        circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
+        mappings = map_circuits_to_backends(circuits, backends, runs)
+
+        for circuit, backend, circuit_name in mappings:
+            
+            # Test your functions
+            try:
+                props = backend.properties()
+                if props:
+
+                    gate_name, max_error = list(get_max_gate_error(props).items())[0]
+                    l = max_operations_per_qubit(circuit)
+                    c = max_parallelism(circuit)
+
+                    likelihood=math.pow(1-max_error,l*c)
+
+                    # Heuristic thresholds — adjust as needed
+                    if likelihood<0.5:
+                        
+                        backend_class_name = backend.__class__.__name__ 
+
+                        smell = LC(
+                            likelihood=likelihood,
+                            error={gate_name:max_error},
+                            l=l,
+                            c=c,
+                            backend=backend_class_name,
+                            circuit_name=circuit_name,  # Use the captured name
+                            explanation="",
+                            suggestion=""
+                        )
+
+                        smells.append(smell)
+
+
+            except Exception as e:
+                print(f"  Error: {e}")
+        
         return smells

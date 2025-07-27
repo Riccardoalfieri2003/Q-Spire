@@ -1,4 +1,4 @@
-from smells.OperationCircuitTracker import analyze_quantum_file
+from smells.utils.OperationCircuitTracker import analyze_quantum_file
 from collections import defaultdict
 from smells.Detector import Detector
 from smells.IQ.IQ import IQ

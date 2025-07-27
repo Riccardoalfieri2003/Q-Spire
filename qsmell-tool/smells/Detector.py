@@ -39,7 +39,7 @@ class Detector(ABC):
         self.smell_cls = smell_cls
 
     @abstractmethod
-    def detect(self, code):
+    def detect(self, file):
         """Detect method to be implemented by each specific smell detector"""
         pass
 

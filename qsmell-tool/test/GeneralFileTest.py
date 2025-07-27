@@ -669,6 +669,9 @@ def detect_smells_from_file(file: str):
 
 
 if __name__ == "__main__":
+
+    """python -m test.GeneralFileTest"""
+
     # Test the exec detection
     
     # Test with the problematic file

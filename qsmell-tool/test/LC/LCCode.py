@@ -1,11 +1,12 @@
 from qiskit import QuantumCircuit
-from test.LC.MyFakeBackend import MyFakeBackend
+from smells.utils.MyFakeBackend import MyFakeBackend
 
 backend = MyFakeBackend(
     num_qubits=5,
     noise_settings={
         'x': (35.5e-9, None, 1e-4),  # (duration, None, error_rate)
         'cz': (500e-9, None, 5e-3),
+        'h': (500e-9, None, 5e-1),
         'measure': (1000e-9, None, 2e-1)
     },
     t1_values=[75e-6, 80e-6, 90e-6, 100e-6, 110e-6],

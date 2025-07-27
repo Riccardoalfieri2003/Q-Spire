@@ -2,11 +2,10 @@ import datetime
 from qiskit.providers.fake_provider.generic_backend_v2 import GenericBackendV2
 from qiskit.transpiler.coupling import CouplingMap
 from qiskit.transpiler import CouplingMap, Target
-from qiskit.circuit.library import RZGate, XGate, SXGate, CZGate, IGate, Measure
+from qiskit.circuit.library import *
 from qiskit.transpiler import InstructionProperties
 
 from typing import Optional, Dict, List, Union
-import numpy as np
 
 from qiskit_ibm_runtime.models import (
     BackendStatus,
@@ -18,12 +17,7 @@ from qiskit_ibm_runtime.models import (
     Nduv
 )
 
-from qiskit.circuit.library import RZGate, XGate, SXGate, IGate, CZGate, Measure
-from qiskit.transpiler import Target, InstructionProperties
 from datetime import datetime
-from typing import Optional, List, Dict
-from qiskit.circuit import QuantumCircuit
-from qiskit.transpiler import CouplingMap
 
 class MyFakeBackend(GenericBackendV2):
     """
@@ -96,12 +90,61 @@ class MyFakeBackend(GenericBackendV2):
 
         # Map of gate name to class and qubit arity
         gate_map = {
-            "rz": (RZGate(0.0), 1),  # Requires phi
+            # Single-qubit gates
             "x": (XGate(), 1),
+            "y": (YGate(), 1),
+            "z": (ZGate(), 1),
+            "h": (HGate(), 1),
+            "s": (SGate(), 1),
+            "sdg": (SdgGate(), 1),
+            "t": (TGate(), 1),
+            "tdg": (TdgGate(), 1),
             "sx": (SXGate(), 1),
+            "sxdg": (SXdgGate(), 1),
             "id": (IGate(), 1),
+            "i": (IGate(), 1),
+            "rz": (RZGate(0.0), 1),
+            "rx": (RXGate(0.0), 1),
+            "ry": (RYGate(0.0), 1),
+            "p": (PhaseGate(0.0), 1),
+            "u": (UGate(0.0, 0.0, 0.0), 1),
+            "u1": (U1Gate(0.0), 1),
+            "u2": (U2Gate(0.0, 0.0), 1),
+            "u3": (U3Gate(0.0, 0.0, 0.0), 1),
+            
+            # Two-qubit gates
+            "cx": (CXGate(), 2),
+            "cnot": (CXGate(), 2),
+            "cy": (CYGate(), 2),
             "cz": (CZGate(), 2),
-            "measure": (Measure(), 1)
+            "ch": (CHGate(), 2),
+            "crx": (CRXGate(0.0), 2),
+            "cry": (CRYGate(0.0), 2),
+            "crz": (CRZGate(0.0), 2),
+            "cp": (CPhaseGate(0.0), 2),
+            "cu": (CUGate(0.0, 0.0, 0.0, 0.0), 2),
+            "cu1": (CU1Gate(0.0), 2),
+            "cu3": (CU3Gate(0.0, 0.0, 0.0), 2),
+            "swap": (SwapGate(), 2),
+            "iswap": (iSwapGate(), 2),
+            "dcx": (DCXGate(), 2),
+            "ecr": (ECRGate(), 2),
+            "rxx": (RXXGate(0.0), 2),
+            "ryy": (RYYGate(0.0), 2),
+            "rzz": (RZZGate(0.0), 2),
+            "rzx": (RZXGate(0.0), 2),
+            
+            # Three-qubit gates
+            "ccx": (CCXGate(), 3),
+            "toffoli": (CCXGate(), 3),
+            "ccz": (CCZGate(), 3),
+            "cswap": (CSwapGate(), 3),
+            "fredkin": (CSwapGate(), 3),
+            
+            # Special operations
+            "measure": (Measure(), 1),
+            "reset": (Reset(), 1),
+            "barrier": (Barrier(1), 1),  # Arity will be adjusted
         }
 
         for name, params in noise_settings.items():
@@ -156,7 +199,7 @@ class MyFakeBackend(GenericBackendV2):
             error = params[2]
             
             # Single-qubit gates
-            if gate_name in ['id', 'rz', 'sx', 'x']:
+            if gate_name in ["x","y","z","h","s","sdg","t","tdg","sx","sxdg","id","i","rz","rx","ry","p","u","u1","u2","u3"]:
                 for q in range(self._num_qubits):
                     gates.append({
                         "gate": gate_name,
@@ -169,7 +212,7 @@ class MyFakeBackend(GenericBackendV2):
                     })
             
             # Two-qubit gates
-            elif gate_name == 'cz':
+            elif gate_name in ["cx","cnot","cy","cz","ch","crx","cry","crz","cp","cu","cu1","cu3","swap","iswap","dcx","ecr","rxx","ryy","rzz","rzx"]:
                 for q1 in range(self._num_qubits):
                     for q2 in range(self._num_qubits):
                         if q1 != q2:
@@ -182,6 +225,34 @@ class MyFakeBackend(GenericBackendV2):
                                     {"name": "gate_length", "date": now, "unit": "ns", "value": params[0]}
                                 ]
                             })
+
+            #Three-qubit gates
+            elif gate_name in ["ccx","toffoli","ccz","cswap","fredkin"]:
+                for q1 in range(self._num_qubits):
+                    for q2 in range(self._num_qubits):
+                        for q3 in range(self._num_qubits):
+                            if q1 != q2 and q2!=q3:
+                                gates.append({
+                                    "gate": gate_name,
+                                    "name": gate_name,
+                                    "qubits": [q1, q2, q3],
+                                    "parameters": [
+                                        {"name": "gate_error", "date": now, "unit": "", "value": error},
+                                        {"name": "gate_length", "date": now, "unit": "ns", "value": params[0]}
+                                    ]
+                                })
+            
+            #Special operations
+            elif gate_name in ["measure","reset","barrier"]:
+                gates.append({
+                    "gate": gate_name,
+                    "name": gate_name,
+                    "qubits": [],
+                    "parameters": [
+                        {"name": "gate_error", "date": now, "unit": "", "value": error},
+                        {"name": "gate_length", "date": now, "unit": "ns", "value": params[0]}
+                    ]
+                })
         
         # Build the properties dictionary
         properties_dict = {
@@ -202,106 +273,3 @@ class MyFakeBackend(GenericBackendV2):
             if len(measure_params) > 2:
                 return measure_params[2]
         return 0.01  # Default 1% readout error
-
-
-# Example usage
-fake_backend = MyFakeBackend(
-    num_qubits=5,
-    noise_settings={
-        'x': (35.5e-9, None, 1e-4),  # (duration, None, error_rate)
-        'cz': (500e-9, None, 5e-3),
-        'measure': (1000e-9, None, 2e-2)
-    },
-    t1_values=[75e-6, 80e-6, 90e-6, 100e-6, 110e-6],
-    t2_values=[120e-6, 130e-6, 140e-6, 150e-6, 160e-6]
-)
-
-# Access properties
-#props = fake_backend.properties()
-"""
-print("T1 times:", [q[0].value for q in props.qubits])
-print("X gate errors:", [g.parameters[0].value for g in props.gates if g.gate == 'x'])
-print("CZ gate errors:", [g.parameters[0].value for g in props.gates if g.gate == 'cz'])"""
-
-
-"""
-# Get maximum error for each gate type
-gate_max_errors = {}
-
-# Process single-qubit gates
-single_qubit_gates = ['x', 'sx', 'rz', 'id']
-for gate in single_qubit_gates:
-    errors = [g.parameters[0].value for g in props.gates if g.gate == gate]
-    if errors:
-        gate_max_errors[gate] = max(errors)
-
-# Process two-qubit gates (like CZ)
-two_qubit_gates = ['cz']
-for gate in two_qubit_gates:
-    errors = [g.parameters[0].value for g in props.gates if g.gate == gate]
-    if errors:
-        gate_max_errors[gate] = max(errors)
-
-# Process measurement
-measure_errors = [q[3].value for q in props.qubits]  # index 3 is readout_error
-if measure_errors:
-    gate_max_errors['measure'] = max(measure_errors)
-
-print("Maximum gate errors:")
-for gate, error in gate_max_errors.items():
-    print(f"{gate}: {error}")
-"""
-
-
-from collections import defaultdict
-
-def get_max_gate_errors(backend_properties) -> dict:
-    """
-    Returns a dictionary of maximum error rates for all active gates.
-    Format: {'gate_name': max_error}
-    Includes both quantum gates and measurement errors.
-    """
-    # Initialize dictionary to store errors for each gate type
-    gate_errors = defaultdict(list)
-    
-    # Process all quantum gates
-    for gate in backend_properties.gates:
-        # Get the error parameter (assuming it's the first parameter)
-        if gate.parameters and hasattr(gate.parameters[0], 'value'):
-            gate_errors[gate.gate].append(gate.parameters[0].value)
-    
-    # Add measurement errors (readout errors)
-    if backend_properties.qubits:
-        readout_errors = []
-        for qubit_props in backend_properties.qubits:
-            # Find the readout error property (typically index 3)
-            for prop in qubit_props:
-                if getattr(prop, 'name', '') == 'readout_error':
-                    readout_errors.append(prop.value)
-                    break
-        if readout_errors:
-            gate_errors['measure'] = readout_errors
-    
-    # Calculate maximum error for each gate type
-    return {gate: max(errors) for gate, errors in gate_errors.items() if errors}
-
-
-def get_max_gate_error(backend_properties) -> dict:
-    """
-    Returns a dictionary with the single gate having the maximum error rate.
-    Format: {'gate_name': max_error}
-    """
-    # Get all gate errors
-    all_errors = get_max_gate_errors(backend_properties)  # Using our previous function
-    
-    if not all_errors:
-        return {}
-    
-    # Find the gate with maximum error
-    max_gate = max(all_errors.items(), key=lambda x: x[1])
-    
-    return {max_gate[0]: max_gate[1]}
-
-
-#max_errors = get_max_gate_error(props)
-#print(max_errors)

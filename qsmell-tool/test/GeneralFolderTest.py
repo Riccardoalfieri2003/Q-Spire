@@ -67,6 +67,7 @@ def detect_smells_from_folder(folder: str):
     return smells
 
 if __name__ == "__main__":
+    """python -m test.GeneralFolderTest"""
     folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/test")
     detect_smells_from_folder(folder)
 

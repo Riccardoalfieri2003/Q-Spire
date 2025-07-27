@@ -1,6 +1,6 @@
 from smells.Detector import Detector
 from smells.IM.IM import IM
-from smells.OperationCircuitTracker import analyze_quantum_file
+from smells.utils.OperationCircuitTracker import analyze_quantum_file
 
 
 @Detector.register(IM)

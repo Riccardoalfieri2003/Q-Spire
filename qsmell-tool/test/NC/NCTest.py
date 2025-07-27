@@ -5,7 +5,7 @@ from smells.NC.NC import NC
 
 
 
-def test_custom_gate_detector():
+def test_detector():
     """
         Test the custom gate detector with example code.
     
@@ -22,7 +22,9 @@ def test_custom_gate_detector():
     smel=detector.detect(file)
 
     for smell in smel:
-        print(smell.as_dict())
+        import pprint
+        pprint.pp(smell.as_dict())
+        print()
 
 if __name__ == "__main__":
-    test_custom_gate_detector()
+    test_detector()
