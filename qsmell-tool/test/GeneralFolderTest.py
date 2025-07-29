@@ -111,7 +111,10 @@ def save_output(path: str, folder_name: str, smells: dict):
 
 
 if __name__ == "__main__":
-    folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/")
+
+    #python -m test.GeneralFolderTest
+
+    folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/alt_def")
     smells = detect_smells_from_folder(folder)
 
     # Example: save results to desktop under folder "SmellResults"

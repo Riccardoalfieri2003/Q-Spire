@@ -442,18 +442,19 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
             call_depth -= 1
 
 
-"""
+
 if __name__ == "__main__":
     #python -m test.GeneralFileTest
     
     # Test with the problematic file
-    file = os.path.abspath("")
+    #file = os.path.abspath("")
+    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/generated_executables/executable__get_evaluate_energy.py")
     if os.path.exists(file):
         # You can change the max_exec_depth here (default is 3)
         result = detect_smells_from_file(file, max_exec_depth=3)
         if result is not None:
             for smell in result: 
                 print(smell.as_dict())
+        print(result)
     else:
         print(f"File {file} not found")
-"""
