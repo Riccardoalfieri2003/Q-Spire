@@ -5,6 +5,613 @@ import re
 import os
 from pathlib import Path
 
+max_iterations=50
+
+
+
+
+def get_fix_insertion_point(lines, error_line_idx):
+    """
+    Find the best insertion point for a fix before a problematic line.
+    Returns (insertion_index, indentation_string).
+    
+    This version prioritizes finding assignment statements which are 
+    typically where we want to insert attribute fixes.
+    """
+    
+    # Look backwards for assignment patterns - start close and expand search
+    for i in range(error_line_idx, max(-1, error_line_idx - 25), -1):
+        line = lines[i].strip()
+        if not line:
+            continue
+            
+        # Look for assignment patterns first - this is usually what we want
+        if '=' in line and not line.startswith('==') and not line.startswith('!='):
+            # Simple check to avoid assignments inside strings
+            equals_pos = line.find('=')
+            before_equals = line[:equals_pos]
+            
+            # Count quotes before the equals to see if we're in a string
+            double_quotes = before_equals.count('"')
+            single_quotes = before_equals.count("'")
+            
+            # If even number of quotes, the = is not inside a string
+            if double_quotes % 2 == 0 and single_quotes % 2 == 0:
+                # This looks like a real assignment statement
+                indent_match = re.match(r'^(\s*)', lines[i])
+                indent = indent_match.group(1) if indent_match else ''
+                return i, indent
+        
+        # Also look for other statement starters, but with less priority
+        if any(line.startswith(keyword) for keyword in ['def ', 'class ', 'if ', 'for ', 'while ', 'try:', 'with ']):
+            indent_match = re.match(r'^(\s*)', lines[i])
+            indent = indent_match.group(1) if indent_match else ''
+            return i, indent
+    
+    # If no assignment found, try the original functions as fallback
+    try:
+        # Try declaration start detection
+        decl_start = find_declaration_start(lines, error_line_idx)
+        if decl_start is not None:
+            decl_line = lines[decl_start]
+            indent_match = re.match(r'^(\s*)', decl_line)
+            indent = indent_match.group(1) if indent_match else ''
+            return decl_start, indent
+        
+        # Try complete statement range detection
+        start_idx, _ = find_complete_statement_range(lines, error_line_idx)
+        if start_idx < error_line_idx:
+            start_line = lines[start_idx]
+            indent_match = re.match(r'^(\s*)', start_line)
+            indent = indent_match.group(1) if indent_match else ''
+            return start_idx, indent
+            
+    except Exception as e:
+        # If the other functions fail, continue to fallback
+        pass
+    
+    # Final fallback: insert before the error line itself
+    error_line = lines[error_line_idx]
+    indent_match = re.match(r'^(\s*)', error_line)
+    indent = indent_match.group(1) if indent_match else ''
+    return error_line_idx, indent
+
+def find_complete_statement_range(lines, error_line_idx):
+    """
+    Find the complete range of a multi-line statement that includes the error line.
+    Returns (start_idx, end_idx) where both are inclusive.
+    """
+    start_idx = error_line_idx
+    end_idx = error_line_idx
+    
+    # Get the base indentation of the error line
+    error_line = lines[error_line_idx].rstrip()
+    base_indent_match = re.match(r'^(\s*)', error_line)
+    base_indent = base_indent_match.group(1) if base_indent_match else ''
+    
+    # Look backwards to find the start of the statement
+    # We need to find where the assignment or function call begins
+    for i in range(error_line_idx, -1, -1):
+        line = lines[i].rstrip()
+        if not line.strip():  # Skip empty lines
+            continue
+            
+        line_indent_match = re.match(r'^(\s*)', line)
+        line_indent = line_indent_match.group(1) if line_indent_match else ''
+        
+        # If we find a line with less indentation, we've gone too far
+        if len(line_indent) < len(base_indent):
+            break
+            
+        # If we find a line that starts a new statement (contains = or is a function def, etc.)
+        # and has the same indentation level, this might be our start
+        if len(line_indent) == len(base_indent):
+            stripped = line.strip()
+            # Check if this line starts a statement
+            if ('=' in stripped and not stripped.startswith('==') or 
+                stripped.endswith('(') or 
+                any(stripped.startswith(keyword) for keyword in ['def ', 'class ', 'if ', 'for ', 'while ', 'try:', 'except', 'with '])):
+                start_idx = i
+                break
+        
+        start_idx = i
+    
+    # Look forwards to find the end of the statement
+    # We need to balance parentheses, brackets, and braces
+    paren_count = 0
+    bracket_count = 0
+    brace_count = 0
+    
+    # Count opening/closing characters from start to current position
+    for i in range(start_idx, error_line_idx + 1):
+        line = lines[i]
+        paren_count += line.count('(') - line.count(')')
+        bracket_count += line.count('[') - line.count(']')
+        brace_count += line.count('{') - line.count('}')
+    
+    # Continue forward until all brackets are balanced
+    for i in range(error_line_idx + 1, len(lines)):
+        line = lines[i].rstrip()
+        if not line.strip():  # Skip empty lines
+            end_idx = i
+            continue
+            
+        line_indent_match = re.match(r'^(\s*)', line)
+        line_indent = line_indent_match.group(1) if line_indent_match else ''
+        
+        # Update bracket counts
+        paren_count += line.count('(') - line.count(')')
+        bracket_count += line.count('[') - line.count(']')
+        brace_count += line.count('{') - line.count('}')
+        
+        end_idx = i
+        
+        # If all brackets are balanced and we're at the same or less indentation
+        if (paren_count <= 0 and bracket_count <= 0 and brace_count <= 0):
+            # Check if this line ends the statement
+            stripped = line.strip()
+            if (stripped.endswith(')') or stripped.endswith(']') or stripped.endswith('}') or
+                stripped.endswith(';') or not stripped.endswith((',', '\\'))):
+                break
+        
+        # If we encounter a line with less indentation and balanced brackets, stop
+        if (len(line_indent) < len(base_indent) and 
+            paren_count <= 0 and bracket_count <= 0 and brace_count <= 0):
+            end_idx = i - 1
+            break
+    
+    return start_idx, end_idx
+
+
+def extract_class_from_assignment(deleted_lines):
+    """
+    Extract the class name from a deleted assignment.
+    Returns the class name or None if not found.
+    """
+    # Join all deleted lines to get the complete statement
+    full_statement = ' '.join(line.strip() for line in deleted_lines)
+    
+    # Remove extra whitespace and newlines
+    full_statement = re.sub(r'\s+', ' ', full_statement).strip()
+    
+    # Pattern 1: Direct class instantiation - var = ClassName(...)
+    # This handles: job = AlgorithmJob(...), result = SomeClass(...), etc.
+    class_match = re.search(r'=\s*([A-Z][a-zA-Z0-9_]*(?:\.[A-Z][a-zA-Z0-9_]*)*)\s*\(', full_statement)
+    if class_match:
+        return class_match.group(1)
+    
+    # Pattern 2: Module.ClassName(...) - handles imported classes
+    # This handles: job = qiskit_algorithms.AlgorithmJob(...), etc.  
+    module_class_match = re.search(r'=\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*\.[A-Z][a-zA-Z0-9_]*)\s*\(', full_statement)
+    if module_class_match:
+        full_class_path = module_class_match.group(1)
+        # Return just the class name (last part after the last dot)
+        return full_class_path.split('.')[-1]
+    
+    # Pattern 3: Function calls that might return class instances
+    # This is a fallback for functions that create objects
+    func_match = re.search(r'=\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*\(', full_statement)
+    if func_match:
+        func_name = func_match.group(1)
+        
+        # Try to infer the class from function name patterns
+        if 'create' in func_name.lower() or 'make' in func_name.lower():
+            # Functions like create_job, make_circuit, etc.
+            if 'job' in func_name.lower():
+                return 'Job'
+            elif 'circuit' in func_name.lower():
+                return 'Circuit'  
+            elif 'backend' in func_name.lower():
+                return 'Backend'
+            elif 'result' in func_name.lower():
+                return 'Result'
+        
+        # Check if function name suggests return type
+        elif func_name.endswith('Job') or 'Job' in func_name:
+            return 'Job'
+        elif func_name.endswith('Backend') or 'Backend' in func_name:
+            return 'Backend'
+        elif func_name.endswith('Circuit') or 'Circuit' in func_name:
+            return 'Circuit'
+        elif func_name.endswith('Result') or 'Result' in func_name:
+            return 'Result'
+        else:
+            # Generic function call - try to extract a meaningful name
+            # Take the last part of the function name and capitalize it
+            base_name = func_name.split('.')[-1]
+            return base_name.capitalize() if base_name else None
+    
+    # Pattern 4: Look for any callable that might be a class
+    # This catches cases where the class name doesn't start with uppercase
+    any_callable_match = re.search(r'=\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\s*\(', full_statement)
+    if any_callable_match:
+        callable_name = any_callable_match.group(1)
+        # Return the last part and make it a proper class name
+        base_name = callable_name.split('.')[-1]
+        return base_name.capitalize()
+    
+    return None
+
+
+def create_mock_class_definition(class_name, indent):
+    """
+    Create a mock class definition with common methods.
+    The class_name should be the actual class name extracted from the code.
+    """
+    mock_class_name = f"Mock{class_name}"
+    
+    return [
+        f"{indent}# auto-fix: creating mock class for {class_name}",
+        f"{indent}class {mock_class_name}:",
+        f"{indent}    def __init__(self, *args, **kwargs):",
+        f"{indent}        # Accept any arguments to avoid parameter errors",
+        f"{indent}        pass",
+        f"{indent}    ",
+        f"{indent}    def __getattr__(self, name):",
+        f"{indent}        # Return a callable for any method that doesn't exist",
+        f"{indent}        return lambda *args, **kwargs: self",
+        f"{indent}    ",
+        f"{indent}    def __call__(self, *args, **kwargs):",
+        f"{indent}        # Make the object callable",
+        f"{indent}        return self",
+        f"{indent}    ",
+        f"{indent}    def __str__(self):",
+        f"{indent}        return f'{mock_class_name}()'",
+        f"{indent}    ",
+        f"{indent}    def __repr__(self):",
+        f"{indent}        return self.__str__()",
+        f"{indent}    ",
+        f"{indent}    # Common methods that might be called on any object",
+        f"{indent}    def submit(self): return self",
+        f"{indent}    def result(self): return self", 
+        f"{indent}    def run(self, *args, **kwargs): return self",
+        f"{indent}    def execute(self, *args, **kwargs): return self",
+        f"{indent}    def get_counts(self): return {{'00': 1000, '01': 200, '10': 150, '11': 24}}",
+        f"{indent}    def get_data(self): return {{}}",
+        f"{indent}    def job_id(self): return 'mock_job_id'",
+        f"{indent}    def status(self): return 'DONE'",
+        f"{indent}    def wait_for_completion(self): return self",
+        f"{indent}    def cancel(self): return True",
+        f"{indent}    def backend(self): return self",
+        f"{indent}    def draw(self, *args, **kwargs): return 'Mock Circuit Drawing'",
+        f"{indent}    def transpile(self, *args, **kwargs): return self",
+    ]
+
+
+def find_declaration_start(lines, error_line_idx):
+    """
+    Find the start of a declaration/assignment that contains the error line.
+    Returns the line index where the declaration starts, or None if not in a declaration.
+    """
+    # Look backwards from the error line to find the start of a declaration
+    for i in range(error_line_idx, -1, -1):
+        line = lines[i].strip()
+        if not line:  # Skip empty lines
+            continue
+            
+        # Check if this line contains an assignment operator
+        if '=' in line and not line.startswith('==') and not line.startswith('!='):
+            # Make sure it's not inside a string or comment
+            # Simple check: if '=' appears before any quotes
+            equals_pos = line.find('=')
+            first_quote = min([pos for pos in [line.find('"'), line.find("'")] if pos != -1] or [len(line)])
+            
+            if equals_pos < first_quote:
+                # This is likely a declaration line
+                # Check if the error line is part of this declaration by looking at indentation
+                error_line = lines[error_line_idx]
+                decl_line = lines[i]
+                
+                # Get indentation levels
+                decl_indent = len(decl_line) - len(decl_line.lstrip())
+                error_indent = len(error_line) - len(error_line.lstrip())
+                
+                # If the error line has more indentation, it's likely part of the declaration
+                if error_indent > decl_indent:
+                    return i
+                # If same indentation but error line doesn't start with '=', 
+                # it might be a continuation
+                elif error_indent == decl_indent and not error_line.strip().startswith('='):
+                    # Check if there are unbalanced parentheses/brackets from declaration to error
+                    paren_count = 0
+                    bracket_count = 0
+                    brace_count = 0
+                    
+                    for j in range(i, error_line_idx + 1):
+                        check_line = lines[j]
+                        paren_count += check_line.count('(') - check_line.count(')')
+                        bracket_count += check_line.count('[') - check_line.count(']')
+                        brace_count += check_line.count('{') - check_line.count('}')
+                    
+                    # If brackets are unbalanced, we're inside the declaration
+                    if paren_count > 0 or bracket_count > 0 or brace_count > 0:
+                        return i
+                
+                # If we found an assignment at same or higher level, we're not in a declaration
+                if error_indent <= decl_indent:
+                    break
+        
+        # If we encounter a line with less indentation that's not empty, stop searching
+        if line:
+            error_line = lines[error_line_idx]
+            decl_indent = len(lines[i]) - len(lines[i].lstrip())
+            error_indent = len(error_line) - len(error_line.lstrip())
+            
+            if decl_indent < error_indent:
+                continue  # Keep looking backwards
+            else:
+                break  # We've gone too far
+    
+    return None  # Not inside a declaration
+
+
+def is_inside_declaration(lines, error_line_idx):
+    """
+    Check if the error line is inside a multi-line declaration/assignment.
+    Returns (True, declaration_start_idx) if inside a declaration, (False, None) otherwise.
+    """
+    decl_start = find_declaration_start(lines, error_line_idx)
+    return (True, decl_start) if decl_start is not None else (False, None)
+    """
+    Intelligently delete a complete statement that spans multiple lines.
+    Returns the modified lines and the number of lines deleted.
+    """
+    start_idx, end_idx = find_complete_statement_range(lines, error_line_idx)
+    
+    # Get the deleted content for logging
+    deleted_lines = lines[start_idx:end_idx + 1]
+    
+    # Check if we're deleting a variable assignment - we might need to preserve the variable
+    first_line = lines[start_idx].strip()
+    assignment_match = re.match(r'^(\w+)\s*=', first_line)
+    
+    replacement_lines = []
+    if assignment_match:
+        var_name = assignment_match.group(1)
+        # Get indentation from the first line
+        indent_match = re.match(r'^(\s*)', lines[start_idx])
+        indent = indent_match.group(1) if indent_match else ''
+        
+        # Try to extract the original class name
+        original_class = extract_class_from_assignment(deleted_lines)
+        
+        if original_class:
+            # Create a mock class based on the original
+            mock_class_name = f"Mock{original_class}"
+            
+            replacement_lines = [
+                f"{indent}# auto-fix: deleted problematic assignment, creating mock instance",
+            ] + create_mock_class_definition(original_class, indent) + [
+                f"{indent}{var_name} = {mock_class_name}()  # mock instance of {original_class}"
+            ]
+        else:
+            # Fallback to a generic mock object
+            replacement_lines = [
+                f"{indent}# auto-fix: deleted problematic assignment, providing generic mock",
+                f"{indent}class _GenericMock:",
+                f"{indent}    def __getattr__(self, name): return lambda *args, **kwargs: self",
+                f"{indent}    def __call__(self, *args, **kwargs): return self",
+                f"{indent}    def __str__(self): return 'GenericMock()'",
+                f"{indent}{var_name} = _GenericMock()  # generic mock instance"
+            ]
+    
+    # Delete the problematic lines and insert replacements
+    del lines[start_idx:end_idx + 1]
+    if replacement_lines:
+        lines[start_idx:start_idx] = replacement_lines
+    
+    return lines, deleted_lines, len(deleted_lines) - len(replacement_lines)
+
+
+# Updated fallback in make_fix function
+def make_fix_fallback(err_type, err_msg, line_text, lines, line_no):
+    """
+    Fallback that intelligently deletes complete multi-line statements
+    """
+    idx = (line_no - 1) if line_no and line_no > 0 else 0
+    
+    if idx >= len(lines):
+        return {'action': 'stop', 'error_type': err_type, 'error_msg': 'Line index out of range'}
+    
+    # Use smart deletion for multi-line statements
+    modified_lines, deleted_content, lines_deleted = smart_delete_statement(lines.copy(), idx)
+    
+    return {
+        'action': 'smart_delete',
+        'error_type': err_type,
+        'error_msg': err_msg,
+        'modified_lines': modified_lines,
+        'deleted_content': deleted_content,
+        'lines_deleted': lines_deleted
+    }
+
+
+
+def find_complete_statement_range_improved(lines, error_line_idx):
+    """
+    Improved version that better handles multi-line statements with proper bracket balancing.
+    Returns (start_idx, end_idx) where both are inclusive.
+    """
+    print(f"DEBUG: find_complete_statement_range_improved called with error_line_idx={error_line_idx}")
+    
+    # First, find the start of the statement by looking for assignments or other statement starters
+    start_idx = error_line_idx
+    
+    # Look backwards to find the start
+    for i in range(error_line_idx, -1, -1):
+        line = lines[i].strip()
+        if not line:  # Skip empty lines
+            continue
+            
+        print(f"DEBUG: Checking line {i}: '{line}'")
+        
+        # Check for assignment - this is usually the start of our statement
+        if '=' in line and not line.startswith('==') and not line.startswith('!='):
+            # Make sure it's not in a string
+            equals_pos = line.find('=')
+            before_equals = line[:equals_pos]
+            if before_equals.count('"') % 2 == 0 and before_equals.count("'") % 2 == 0:
+                print(f"DEBUG: Found assignment start at line {i}")
+                start_idx = i
+                break
+        
+        # Check for other statement starters
+        if any(line.startswith(keyword) for keyword in ['def ', 'class ', 'if ', 'for ', 'while ', 'try:', 'with ', 'return ']):
+            print(f"DEBUG: Found statement start at line {i}")
+            start_idx = i
+            break
+            
+        # If we find a line with significantly less indentation, stop
+        if line:
+            current_indent = len(lines[i]) - len(lines[i].lstrip())
+            error_indent = len(lines[error_line_idx]) - len(lines[error_line_idx].lstrip())
+            
+            if current_indent < error_indent - 4:  # Allow some flexibility
+                print(f"DEBUG: Significant indentation change at line {i}, stopping")
+                break
+                
+        start_idx = i
+    
+    print(f"DEBUG: Statement starts at line {start_idx}")
+    
+    # Now find the end by balancing brackets from the start
+    end_idx = error_line_idx
+    
+    # Count all brackets from the start line
+    paren_count = 0
+    bracket_count = 0
+    brace_count = 0
+    
+    # Start counting from the beginning of the statement
+    for i in range(start_idx, len(lines)):
+        line = lines[i]
+        
+        # Update bracket counts
+        line_paren = line.count('(') - line.count(')')
+        line_bracket = line.count('[') - line.count(']')
+        line_brace = line.count('{') - line.count('}')
+        
+        paren_count += line_paren
+        bracket_count += line_bracket
+        brace_count += line_brace
+        
+        print(f"DEBUG: Line {i}: '{line.strip()}' | Parens: {paren_count}, Brackets: {bracket_count}, Braces: {brace_count}")
+        
+        end_idx = i
+        
+        # If we're past the error line and all brackets are balanced
+        if i >= error_line_idx and paren_count <= 0 and bracket_count <= 0 and brace_count <= 0:
+            print(f"DEBUG: All brackets balanced at line {i}")
+            break
+            
+        # Safety check: if we've gone too far past the error line and brackets are still unbalanced
+        if i > error_line_idx + 20:
+            print(f"DEBUG: Safety break at line {i}")
+            break
+    
+    print(f"DEBUG: Statement ends at line {end_idx}")
+    return start_idx, end_idx
+
+def smart_delete_statement(lines, error_line_idx):
+    """
+    Improved version that uses better range detection.
+    Returns the modified lines, deleted content, and number of lines deleted.
+    """
+    print(f"DEBUG: smart_delete_statement_improved called with error_line_idx={error_line_idx}")
+    
+    # Use the improved range finder
+    start_idx, end_idx = find_complete_statement_range_improved(lines, error_line_idx)
+    
+    print(f"DEBUG: Will delete lines {start_idx} to {end_idx} (inclusive)")
+    
+    # Get the deleted content for logging
+    deleted_lines = lines[start_idx:end_idx + 1]
+    
+    print("DEBUG: Lines to be deleted:")
+    for i, line in enumerate(deleted_lines):
+        print(f"  {start_idx + i}: '{line.rstrip()}'")
+    
+    # Check if we're deleting a variable assignment - we might need to preserve the variable
+    first_line = lines[start_idx].strip()
+    assignment_match = re.match(r'^([a-zA-Z_][\w\.]*)\s*=', first_line)
+    
+    replacement_lines = []
+    if assignment_match:
+        var_name = assignment_match.group(1)
+        print(f"DEBUG: Found variable assignment: {var_name}")
+        
+        # Get indentation from the first line
+        indent_match = re.match(r'^(\s*)', lines[start_idx])
+        indent = indent_match.group(1) if indent_match else ''
+        
+        # Try to extract the original class name
+        original_class = extract_class_from_assignment(deleted_lines)
+        
+        if original_class:
+            print(f"DEBUG: Extracted class name: {original_class}")
+            # Create a mock class based on the original
+            mock_class_name = f"Mock{original_class}"
+            
+            replacement_lines = [
+                f"{indent}# auto-fix: deleted problematic assignment, creating mock instance",
+            ] + create_mock_class_definition(original_class, indent) + [
+                f"{indent}{var_name} = {mock_class_name}()  # mock instance of {original_class}"
+            ]
+        else:
+            print("DEBUG: No class name extracted, using generic mock")
+            # Fallback to a generic mock object
+            replacement_lines = [
+                f"{indent}# auto-fix: deleted problematic assignment, providing generic mock",
+                f"{indent}class _GenericMock:",
+                f"{indent}    def __getattr__(self, name): return lambda *args, **kwargs: self",
+                f"{indent}    def __call__(self, *args, **kwargs): return self",
+                f"{indent}    def __str__(self): return 'GenericMock()'",
+                f"{indent}{var_name} = _GenericMock()  # generic mock instance"
+            ]
+    else:
+        print("DEBUG: No variable assignment found, just deleting")
+    
+    # Delete the problematic lines and insert replacements
+    print(f"DEBUG: Deleting lines {start_idx}:{end_idx + 1}")
+    del lines[start_idx:end_idx + 1]
+    
+    if replacement_lines:
+        print(f"DEBUG: Inserting {len(replacement_lines)} replacement lines at position {start_idx}")
+        lines[start_idx:start_idx] = replacement_lines
+    
+    lines_deleted_count = len(deleted_lines) - len(replacement_lines)
+    print(f"DEBUG: Net lines deleted: {lines_deleted_count}")
+    
+    return lines, deleted_lines, lines_deleted_count
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def parse_traceback(stderr_text, target_fname):
     """
@@ -19,14 +626,17 @@ def parse_traceback(stderr_text, target_fname):
         if m:
             line_no = int(m.group(1))
             break
+    
     exc_line = tb_lines[-1]
-    exc_match = re.match(r'(\w+(?:Error|Exception)): (.+)', exc_line)
+    # Updated regex to handle module-prefixed exceptions
+    exc_match = re.match(r'([a-zA-Z_][a-zA-Z0-9_.]*(?:Error|Exception)): (.+)', exc_line)
     if not exc_match:
         # Try to match just the error type without message
-        exc_match = re.match(r'(\w+(?:Error|Exception))$', exc_line)
+        exc_match = re.match(r'([a-zA-Z_][a-zA-Z0-9_.]*(?:Error|Exception))$', exc_line)
         if exc_match:
             return exc_match.group(1), "", line_no
         return None
+    
     err_type, err_msg = exc_match.groups()
     return err_type, err_msg, line_no
 
@@ -414,6 +1024,7 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
             f"{indent}warnings.filterwarnings('ignore', category=RuntimeWarning)",
         ]}
     
+    """
     # ============ ATTRIBUTE ERROR ============
     if err_type == 'AttributeError':
         attr_match = re.match(r"'(\w+)' object has no attribute '(\w+)'", err_msg)
@@ -467,6 +1078,177 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
                         f"{indent}else:",
                         f"{indent}    {obj_path.split('.')[0]}.{obj_path.split('.')[1] if '.' in obj_path else missing_attr} = type('MockObj', (), {{'{missing_attr}': lambda *a, **k: None}})()",
                     ]}
+    """
+
+    """
+    # ============ ATTRIBUTE ERROR ============
+    if err_type == 'AttributeError':
+        attr_match = re.match(r"'(\w+)' object has no attribute '(\w+)'", err_msg)
+        if attr_match:
+            obj_type, missing_attr = attr_match.groups()
+            
+            # Find the full object path (e.g., self.ansatz from self.ansatz.parameters)
+            obj_path = None
+            attr_pattern = rf'([a-zA-Z_][\w\.]*)\s*\.\s*{re.escape(missing_attr)}'
+            path_match = re.search(attr_pattern, line_text)
+            if path_match:
+                obj_path = path_match.group(1)
+            else:
+                # Fallback: find any object.attribute pattern
+                fallback_match = re.search(r'([a-zA-Z_][\w\.]*)\s*\.', line_text)
+                obj_path = fallback_match.group(1) if fallback_match else 'obj'
+            
+            # Find the start of the complete statement to insert the fix before it
+            start_idx, _ = find_complete_statement_range(lines, line_no - 1)
+            
+            # Get the indentation from the start of the statement
+            start_line = lines[start_idx]
+            indent_match = re.match(r'(\s*)', start_line)
+            indent = indent_match.group(1) if indent_match else ''
+            
+            # Special handling for common cases
+            if missing_attr == 'parameters' and 'ansatz' in obj_path:
+                return {'action': 'insert_before_statement', 
+                    'target_line': start_idx,
+                    'lines': [
+                    f"{indent}# auto-fix: ensure {obj_path} has {missing_attr} attribute",
+                    f"{indent}if hasattr(self, 'ansatz') and self.ansatz is not None:",
+                    f"{indent}    if not hasattr(self.ansatz, 'parameters'):",
+                    f"{indent}        # Create mock parameters that can be iterated",
+                    f"{indent}        self.ansatz.parameters = ['param_0', 'param_1', 'param_2']",
+                    f"{indent}else:",
+                    f"{indent}    # Create mock ansatz with parameters",
+                    f"{indent}    class MockAnsatz:",
+                    f"{indent}        def __init__(self): self.parameters = ['param_0', 'param_1', 'param_2']",
+                    f"{indent}    self.ansatz = MockAnsatz()",
+                ]}
+            
+            elif obj_path == 'self':
+                # Can't setattr on self safely, try a different approach
+                return {'action': 'insert_before_statement',
+                    'target_line': start_idx,
+                    'lines': [
+                    f"{indent}# auto-fix: mock missing attribute {missing_attr}",
+                    f"{indent}if not hasattr(self, '{missing_attr}'):",
+                    f"{indent}    self.__dict__['{missing_attr}'] = lambda *args, **kwargs: None",
+                ]}
+            else:
+                # Generic attribute fix
+                base_obj = obj_path.split('.')[0]
+                return {'action': 'insert_before_statement',
+                    'target_line': start_idx,
+                    'lines': [
+                    f"{indent}# auto-fix: add missing attribute {missing_attr}",
+                    f"{indent}if hasattr({base_obj}, '{obj_path.split('.')[1] if '.' in obj_path else missing_attr}') and {obj_path} is not None:",
+                    f"{indent}    if not hasattr({obj_path}, '{missing_attr}'):",
+                    f"{indent}        setattr({obj_path}, '{missing_attr}', lambda *args, **kwargs: None)",
+                    f"{indent}else:",
+                    f"{indent}    # Create fallback object structure",
+                    f"{indent}    {obj_path} = type('MockObj', (), {{'{missing_attr}': lambda *a, **k: None}})()",
+                ]}
+    """
+
+    # ============ ATTRIBUTE ERROR ============
+    if err_type == 'AttributeError':
+        attr_match = re.match(r"'(\w+)' object has no attribute '(\w+)'", err_msg)
+        if not attr_match:
+            return None
+            
+        obj_type, missing_attr = attr_match.groups()
+        
+        # Find the full object path (e.g., self.ansatz from self.ansatz.parameters)
+        obj_path = None
+        attr_pattern = rf'([a-zA-Z_][\w\.]*)\s*\.\s*{re.escape(missing_attr)}'
+        path_match = re.search(attr_pattern, line_text)
+        if path_match:
+            obj_path = path_match.group(1)
+        else:
+            # Fallback: find any object.attribute pattern
+            fallback_match = re.search(r'([a-zA-Z_][\w\.]*)\s*\.', line_text)
+            obj_path = fallback_match.group(1) if fallback_match else 'obj'
+        
+        # Determine where to insert the fix
+        insertion_idx, indent = get_fix_insertion_point(lines, line_no - 1)
+        
+        # Special handling for 'parameters' attribute (generalized from ansatz-specific)
+        if missing_attr == 'parameters':
+            # Extract the object name from the path (e.g., 'ansatz' from 'self.ansatz')
+            obj_name = obj_path.split('.')[-1] if '.' in obj_path else obj_path
+            
+            return {'action': 'insert_at_position', 
+                'target_line': insertion_idx,
+                'lines': [
+                f"{indent}# auto-fix: ensure {obj_path} has {missing_attr} attribute",
+                f"{indent}if hasattr({'.'.join(obj_path.split('.')[:-1]) if '.' in obj_path else 'self'}, '{obj_name}') and {obj_path} is not None:",
+                f"{indent}    if not hasattr({obj_path}, '{missing_attr}'):",
+                f"{indent}        # Create mock parameters that can be iterated",
+                f"{indent}        {obj_path}.{missing_attr} = ['param_0', 'param_1', 'param_2']",
+                f"{indent}else:",
+                f"{indent}    # Create mock {obj_name} with {missing_attr}",
+                f"{indent}    class Mock{obj_name.capitalize()}:",
+                f"{indent}        def __init__(self): self.{missing_attr} = ['param_0', 'param_1', 'param_2']",
+                f"{indent}    {obj_path} = Mock{obj_name.capitalize()}()",
+            ]}
+        
+        # Special handling for common iterable attributes
+        elif missing_attr in ['items', 'keys', 'values', 'data', 'results']:
+            return {'action': 'insert_at_position',
+                'target_line': insertion_idx,
+                'lines': [
+                f"{indent}# auto-fix: ensure {obj_path} has {missing_attr} attribute",
+                f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
+                f"{indent}    # Create mock {missing_attr} method/attribute",
+                f"{indent}    if '{missing_attr}' in ['items', 'keys', 'values']:",
+                f"{indent}        setattr({obj_path}, '{missing_attr}', lambda: [])",
+                f"{indent}    else:",
+                f"{indent}        setattr({obj_path}, '{missing_attr}', [])",
+            ]}
+        
+        # Special handling for self attributes
+        elif obj_path == 'self':
+            return {'action': 'insert_at_position',
+                'target_line': insertion_idx,
+                'lines': [
+                f"{indent}# auto-fix: mock missing attribute {missing_attr}",
+                f"{indent}if not hasattr(self, '{missing_attr}'):",
+                f"{indent}    self.__dict__['{missing_attr}'] = lambda *args, **kwargs: None",
+            ]}
+        
+        # Generic attribute fix - works for any object and any attribute
+        else:
+            # Determine if we need a callable or simple value based on context
+            is_callable = '(' in line_text[line_text.find(missing_attr):line_text.find(missing_attr) + 50] if missing_attr in line_text else False
+            mock_value = "lambda *args, **kwargs: None" if is_callable else "None"
+            
+            # Split the object path to get base object and attribute chain
+            path_parts = obj_path.split('.')
+            base_obj = path_parts[0]
+            
+            if len(path_parts) == 1:
+                # Simple case: obj.attr
+                return {'action': 'insert_at_position',
+                    'target_line': insertion_idx,
+                    'lines': [
+                    f"{indent}# auto-fix: add missing attribute {missing_attr}",
+                    f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
+                    f"{indent}    setattr({obj_path}, '{missing_attr}', {mock_value})",
+                ]}
+            else:
+                # Complex case: obj.subobj.attr
+                parent_path = '.'.join(path_parts[:-1])
+                target_obj = path_parts[-1]
+                
+                return {'action': 'insert_at_position',
+                    'target_line': insertion_idx,
+                    'lines': [
+                    f"{indent}# auto-fix: add missing attribute {missing_attr}",
+                    f"{indent}if hasattr({parent_path}, '{target_obj}') and {obj_path} is not None:",
+                    f"{indent}    if not hasattr({obj_path}, '{missing_attr}'):",
+                    f"{indent}        setattr({obj_path}, '{missing_attr}', {mock_value})",
+                    f"{indent}else:",
+                    f"{indent}    # Create fallback object structure",
+                    f"{indent}    {obj_path} = type('MockObj', (), {{'{missing_attr}': {mock_value}}})()",
+                ]}
     
     # ============ IMPORT ERRORS ============
     if err_type in ['ImportError', 'ModuleNotFoundError']:
@@ -659,19 +1441,90 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
             f"{indent}sys.exit = lambda *args: None",
         ]}
     
-    # ============ FALLBACK ============
-    """
-    return {'action': 'insert', 'lines': [
-        f'{indent}# auto-fix: unhandled {err_type} - adding generic try-except',
-        f'{indent}try:',
-        f'{indent}    pass  # original code will execute in try block',
-        f'{indent}except {err_type}:',
-        f'{indent}    pass  # ignore this specific error type',
-    ]}"""
+    if err_type == 'SyntaxError':
+        return {'action': 'delete', 'error_type': err_type, 'error_msg': err_msg}
     
 
+
+
+    # Add this section in your make_fix function, before the fallback
+    # ============ QISKIT ERRORS ============
+    if err_type == 'qiskit.exceptions.QiskitError':
+        if 'Invalid input data for Pauli' in err_msg:
+            # This error often occurs when passing invalid data to Pauli operators
+            # Find the variable being passed to init_observable or similar functions
+            func_call_match = re.search(r'(\w+)\s*=\s*\w+\(([^)]+)\)', line_text)
+            if func_call_match:
+                result_var, input_var = func_call_match.groups()
+                input_var = input_var.strip()
+                return {'action': 'insert', 'lines': [
+                    f"{indent}# auto-fix: ensure valid Pauli input data",
+                    f"{indent}if {input_var} is None or (isinstance({input_var}, str) and {input_var} not in ['I', 'X', 'Y', 'Z']):",
+                    f"{indent}    {input_var} = 'I'  # Default to identity Pauli",
+                    f"{indent}elif hasattr({input_var}, '__iter__') and not isinstance({input_var}, str):",
+                    f"{indent}    {input_var} = ['I'] * len({input_var}) if len({input_var}) > 0 else ['I']",
+                ]}
+        
+        elif 'Circuit and parameter mismatch' in err_msg:
+            return {'action': 'insert', 'lines': [
+                f"{indent}# auto-fix: handle circuit parameter mismatch",
+                f"{indent}# Create a simple circuit with basic gates",
+                f"{indent}from qiskit import QuantumCircuit",
+                f"{indent}_temp_circuit = QuantumCircuit(2)",
+                f"{indent}_temp_circuit.h(0)",
+                f"{indent}_temp_circuit.cx(0, 1)",
+            ]}
+        
+        elif 'Backend' in err_msg or 'provider' in err_msg.lower():
+            return {'action': 'insert', 'lines': [
+                f"{indent}# auto-fix: use simulator backend",
+                f"{indent}from qiskit import Aer",
+                f"{indent}_backend = Aer.get_backend('qasm_simulator')",
+            ]}
+        
+        # Generic Qiskit error fallback
+        else:
+            return {'action': 'insert', 'lines': [
+                f"{indent}# auto-fix: generic Qiskit error - use mock values",
+                f"{indent}try:",
+                f"{indent}    pass  # original Qiskit operation",
+                f"{indent}except Exception as e:",
+                f"{indent}    print(f'Qiskit error bypassed: {{e}}')",
+                f"{indent}    # Provide mock result based on context",
+                f"{indent}    if 'observable' in locals():",
+                f"{indent}        converted_observable = 'I'",
+                f"{indent}    if 'circuit' in locals():",
+                f"{indent}        from qiskit import QuantumCircuit",
+                f"{indent}        circuit = QuantumCircuit(2)",
+            ]}
+    
+    
+    # ============ FALLBACK ============
+    # Signal that we hit an unhandled error and should stop
+    # return {'action': 'stop', 'error_type': err_type, 'error_msg': err_msg}
+    #return {'action': 'delete', 'error_type': err_type, 'error_msg': err_msg}
+
+    # ============ FALLBACK ============
+    # Use smart deletion for unhandled errors
+    idx = (line_no - 1) if line_no and line_no > 0 else 0
+    if idx >= len(lines):
+        return {'action': 'stop', 'error_type': err_type, 'error_msg': 'Line index out of range'}
+
+    # Use smart deletion for multi-line statements  
+    modified_lines, deleted_content, lines_deleted = smart_delete_statement(lines.copy(), idx)
+
+    return {
+        'action': 'smart_delete',
+        'error_type': err_type,
+        'error_msg': err_msg,
+        'modified_lines': modified_lines,
+        'deleted_content': deleted_content,
+        'lines_deleted': lines_deleted
+    }
+    
+"""
 def auto_fix_loop(target_path: Path):
-    max_iterations = 50  # Prevent infinite loops
+    global max_iterations # Prevent infinite loops
     iteration = 0
     
     while iteration < max_iterations:
@@ -684,8 +1537,6 @@ def auto_fix_loop(target_path: Path):
             print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
             break
 
-        print(proc.stderr)
-        print(target_path)
         parsed = parse_traceback(proc.stderr, target_path)
         print(parsed)
         if not parsed:
@@ -736,9 +1587,441 @@ def auto_fix(file_path):
         sys.exit(1)
 
     auto_fix_loop(script_path)
+"""
+
+"""
+def auto_fix(target_path: Path):
+    max_iterations = 50  # Prevent infinite loops
+    iteration = 0
+    
+    while iteration < max_iterations:
+        iteration += 1
+        print(f"Iteration {iteration}...")
+        
+        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
+
+        if proc.returncode == 0:
+            print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
+            break
+
+        parsed = parse_traceback(proc.stderr, target_path)
+        print(parsed)
+        if not parsed:
+            print("Could not parse traceback; aborting.")
+            print("STDERR:", proc.stderr)
+            break
+
+        err_type, err_msg, line_no = parsed
+        print(f"Detected {err_type} at line {line_no}: {err_msg}")
+
+        lines = target_path.read_text().splitlines()
+        idx = (line_no - 1) if line_no and line_no > 0 else 0
+        line_text = lines[idx] if idx < len(lines) else ''
+        
+        print(f"Error line: {line_text.strip()}")
+
+        fix = make_fix(err_type, err_msg, line_text, lines, line_no)
+
+        # Check if we should stop due to unhandled error
+        if isinstance(fix, dict) and fix.get('action') == 'stop':
+            print(f"⚠️  Unhandled error type: {fix['error_type']}")
+            print(f"⚠️  Error message: {fix['error_msg']}")
+            print("⚠️  Stopping auto-fix due to unhandled error type.")
+            return  # This will exit the function and return to main
+        
+        # Continue with normal fix processing
+        if isinstance(fix, dict):
+            if fix.get('action') == 'replace':
+                replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
+                lines[replace_start:replace_end] = fix['lines']
+                insert_offset = len(fix['lines'])
+            elif fix.get('action') == 'insert':
+                lines[idx:idx] = fix['lines']
+                insert_offset = len(fix['lines'])
+            else:
+                insert_offset = 0
+
+            if 'lines_after' in fix and isinstance(fix['lines_after'], list):
+                lines[idx + insert_offset + 1:idx + insert_offset + 1] = fix['lines_after']
+
+        target_path.write_text("\n".join(lines) + "\n")
+        print(f"Applied {fix['action']} at line {line_no}")
+        print("Fix applied:")
+        for line in fix['lines']:
+            print(f"  + {line}")
+        print("Retrying...\n")
+    
+    if iteration >= max_iterations:
+        print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
+"""
+"""
+def auto_fix(target_path: Path):
+    max_iterations = 50
+    iteration = 0
+    
+    while iteration < max_iterations:
+        iteration += 1
+        print(f"Iteration {iteration}...")
+        
+        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
+
+        if proc.returncode == 0:
+            print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
+            break
+
+        parsed = parse_traceback(proc.stderr, target_path)
+        print(parsed)
+        if not parsed:
+            print("Could not parse traceback; aborting.")
+            print("STDERR:", proc.stderr)
+            break
+
+        err_type, err_msg, line_no = parsed
+        print(f"Detected {err_type} at line {line_no}: {err_msg}")
+
+        lines = target_path.read_text().splitlines()
+        idx = (line_no - 1) if line_no and line_no > 0 else 0
+        
+        if idx >= len(lines):
+            print("Error line index out of range")
+            break
+            
+        line_text = lines[idx]
+        print(f"Error line: {line_text.strip()}")
+
+        fix = make_fix(err_type, err_msg, line_text, lines, line_no)
+
+        if isinstance(fix, dict):
+            if fix.get('action') == 'delete':
+                # Delete the problematic line
+                print(f"⚠️  Deleting problematic line: {line_text.strip()}")
+                del lines[idx]
+                insert_offset = 0
+            elif fix.get('action') == 'replace':
+                replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
+                lines[replace_start:replace_end] = fix['lines']
+                insert_offset = len(fix['lines'])
+            elif fix.get('action') == 'insert':
+                lines[idx:idx] = fix['lines']
+                insert_offset = len(fix['lines'])
+            else:
+                insert_offset = 0
+
+            if 'lines_after' in fix and isinstance(fix['lines_after'], list):
+                lines[idx + insert_offset + 1:idx + insert_offset + 1] = fix['lines_after']
+
+        target_path.write_text("\n".join(lines) + "\n")
+        
+        if fix.get('action') == 'delete':
+            print(f"Deleted line {line_no}")
+        else:
+            print(f"Applied {fix['action']} at line {line_no}")
+            print("Fix applied:")
+            for line in fix['lines']:
+                print(f"  + {line}")
+        print("Retrying...\n")
+    
+    if iteration >= max_iterations:
+        print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
+"""
 
 
+
+
+import subprocess
+import sys
+import re
+from pathlib import Path
+
+def parse_syntax_error(stderr_output, target_path):
+    """
+    Parse syntax errors from Python stderr output.
+    Returns (error_type, error_message, line_number) or None if not a syntax error.
+    """
+    # Look for syntax error patterns
+    syntax_patterns = [
+        # Standard syntax error format
+        r'File "([^"]+)", line (\d+)\s*\n\s*(.+)\n\s*\^\s*\nSyntaxError: (.+)',
+        # Alternative syntax error format
+        r'SyntaxError: (.+) \(([^,]+), line (\d+)\)',
+        # Another common format
+        r'File "([^"]+)", line (\d+)\s*.*\n.*SyntaxError: (.+)',
+    ]
+    
+    for pattern in syntax_patterns:
+        match = re.search(pattern, stderr_output, re.MULTILINE | re.DOTALL)
+        if match:
+            if len(match.groups()) >= 3:
+                # Extract line number (could be in different positions depending on pattern)
+                if pattern == syntax_patterns[1]:  # Special case for format 2
+                    error_msg = match.group(1)
+                    line_no = int(match.group(3))
+                else:
+                    line_no = int(match.group(2))
+                    error_msg = match.group(-1)  # Last group is usually the error message
+                
+                return 'SyntaxError', error_msg.strip(), line_no
+    
+    # Try a simpler approach - look for any line with "SyntaxError" and extract line number
+    lines = stderr_output.split('\n')
+    for i, line in enumerate(lines):
+        if 'SyntaxError:' in line:
+            # Look for line number in previous lines
+            for j in range(max(0, i-3), i):
+                line_match = re.search(r'line (\d+)', lines[j])
+                if line_match:
+                    line_no = int(line_match.group(1))
+                    error_msg = line.split('SyntaxError:')[1].strip()
+                    return 'SyntaxError', error_msg, line_no
+    
+    return None
+
+def handle_syntax_error(lines, line_no, error_msg):
+    """
+    Handle syntax errors by removing the problematic line.
+    Returns modified lines.
+    """
+    idx = (line_no - 1) if line_no and line_no > 0 else 0
+    
+    if idx >= len(lines):
+        print(f"⚠️  Syntax error line {line_no} is out of range")
+        return lines
+    
+    problematic_line = lines[idx]
+    print(f"⚠️  Removing syntax error line {line_no}: {problematic_line.strip()}")
+    
+    # Simple approach: just delete the problematic line
+    del lines[idx]
+    
+    return lines
+
+def check_for_syntax_errors(target_path):
+    """
+    Check if a Python file has syntax errors without executing it.
+    Returns (has_syntax_error, error_info) where error_info is (error_type, error_msg, line_no) or None.
+    """
+    try:
+        # Try to compile the file - this will catch syntax errors without execution
+        with open(target_path, 'r', encoding='utf-8') as f:
+            source_code = f.read()
+        
+        compile(source_code, str(target_path), 'exec')
+        return False, None
+        
+    except SyntaxError as e:
+        # Extract syntax error information
+        return True, ('SyntaxError', str(e), e.lineno)
+    except Exception as e:
+        # Other compilation errors
+        return True, ('CompileError', str(e), None)
+
+def auto_fix(target_path: Path):
+    max_iterations = 50
+    iteration = 0
+    
+    while iteration < max_iterations:
+        iteration += 1
+        print(f"Iteration {iteration}...")
+        
+        # First, check for syntax errors before trying to execute
+        has_syntax_error, syntax_error_info = check_for_syntax_errors(target_path)
+        
+        if has_syntax_error:
+            print(f"🔍 Syntax error detected before execution!")
+            err_type, err_msg, line_no = syntax_error_info
+            print(f"Detected {err_type} at line {line_no}: {err_msg}")
+            
+            # Handle syntax error
+            lines = target_path.read_text().splitlines()
+            lines = handle_syntax_error(lines, line_no, err_msg)
+            target_path.write_text("\n".join(lines) + "\n")
+            
+            print(f"Applied syntax error fix at line {line_no}")
+            print("Retrying...\n")
+            continue
+        
+        # If no syntax errors, try to execute the file
+        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
+
+        if proc.returncode == 0:
+            print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
+            break
+
+        # Check if this might be a syntax error that wasn't caught by compile()
+        if 'SyntaxError' in proc.stderr:
+            print("🔍 Syntax error detected in execution output!")
+            syntax_parsed = parse_syntax_error(proc.stderr, target_path)
+            if syntax_parsed:
+                err_type, err_msg, line_no = syntax_parsed
+                print(f"Detected {err_type} at line {line_no}: {err_msg}")
+                
+                # Handle syntax error
+                lines = target_path.read_text().splitlines()
+                lines = handle_syntax_error(lines, line_no, err_msg)
+                target_path.write_text("\n".join(lines) + "\n")
+                
+                print(f"Applied syntax error fix at line {line_no}")
+                print("Retrying...\n")
+                continue
+
+        # If not a syntax error, use the regular error handling
+        parsed = parse_traceback(proc.stderr, target_path)
+        if not parsed:
+            print("Could not parse traceback; aborting.")
+            print("STDERR:", proc.stderr)
+            break
+
+        err_type, err_msg, line_no = parsed
+        print(f"Detected {err_type} at line {line_no}: {err_msg}")
+
+        lines = target_path.read_text().splitlines()
+        idx = (line_no - 1) if line_no and line_no > 0 else 0
+        
+        if idx >= len(lines):
+            print("Error line index out of range")
+            break
+            
+        line_text = lines[idx]
+        print(f"Error line: {line_text.strip()}")
+
+        fix = make_fix(err_type, err_msg, line_text, lines, line_no)
+
+        if isinstance(fix, dict):
+
+            if fix.get('action') == 'insert_at_position':
+                # Insert at the specified position
+                target_idx = fix['target_line']
+                lines[target_idx:target_idx] = fix['lines']
+
+            elif fix.get('action') == 'insert_before_statement':
+                # Insert before the target line (usually the start of a statement)
+                target_idx = fix['target_line']
+                lines[target_idx:target_idx] = fix['lines']
+
+            elif fix.get('action') == 'smart_delete':
+                # Use the pre-computed modified lines
+                lines = fix['modified_lines']
+                print(f"⚠️  Smart deletion applied - removed {fix['lines_deleted']} lines:")
+                for deleted_line in fix['deleted_content']:
+                    print(f"  - {deleted_line.strip()}")
+                
+            elif fix.get('action') == 'delete':
+                # Simple single line deletion (keep for compatibility)
+                print(f"⚠️  Deleting problematic line: {line_text.strip()}")
+                del lines[idx]
+                
+            elif fix.get('action') == 'replace':
+                replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
+                lines[replace_start:replace_end] = fix['lines']
+                
+            elif fix.get('action') == 'insert':
+                lines[idx:idx] = fix['lines']
+                
+            # Handle other actions...
+
+        target_path.write_text("\n".join(lines) + "\n")
+        
+        if fix.get('action') in ['delete', 'smart_delete']:
+            print(f"Applied deletion at line {line_no}")
+        else:
+            print(f"Applied {fix['action']} at line {line_no}")
+            if 'lines' in fix:
+                print("Fix applied:")
+                for line in fix['lines']:
+                    print(f"  + {line}")
+        print("Retrying...\n")
+    
+    if iteration >= max_iterations:
+        print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
+
+
+
+
+"""
+def auto_fix(target_path: Path):
+    max_iterations = 50
+    iteration = 0
+    
+    while iteration < max_iterations:
+        iteration += 1
+        print(f"Iteration {iteration}...")
+        
+        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
+
+        if proc.returncode == 0:
+            print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
+            break
+
+        parsed = parse_traceback(proc.stderr, target_path)
+        if not parsed:
+            print("Could not parse traceback; aborting.")
+            print("STDERR:", proc.stderr)
+            break
+
+        err_type, err_msg, line_no = parsed
+        print(f"Detected {err_type} at line {line_no}: {err_msg}")
+
+        lines = target_path.read_text().splitlines()
+        idx = (line_no - 1) if line_no and line_no > 0 else 0
+        
+        if idx >= len(lines):
+            print("Error line index out of range")
+            break
+            
+        line_text = lines[idx]
+        print(f"Error line: {line_text.strip()}")
+
+        fix = make_fix(err_type, err_msg, line_text, lines, line_no)
+
+        if isinstance(fix, dict):
+
+            if fix.get('action') == 'insert_at_position':
+                # Insert at the specified position
+                target_idx = fix['target_line']
+                lines[target_idx:target_idx] = fix['lines']
+
+            if fix.get('action') == 'insert_before_statement':
+                # Insert before the target line (usually the start of a statement)
+                target_idx = fix['target_line']
+                lines[target_idx:target_idx] = fix['lines']
+
+            if fix.get('action') == 'smart_delete':
+                # Use the pre-computed modified lines
+                lines = fix['modified_lines']
+                print(f"⚠️  Smart deletion applied - removed {fix['lines_deleted']} lines:")
+                for deleted_line in fix['deleted_content']:
+                    print(f"  - {deleted_line.strip()}")
+                
+            elif fix.get('action') == 'delete':
+                # Simple single line deletion (keep for compatibility)
+                print(f"⚠️  Deleting problematic line: {line_text.strip()}")
+                del lines[idx]
+                
+            elif fix.get('action') == 'replace':
+                replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
+                lines[replace_start:replace_end] = fix['lines']
+                
+            elif fix.get('action') == 'insert':
+                lines[idx:idx] = fix['lines']
+                
+            # Handle other actions...
+
+        target_path.write_text("\n".join(lines) + "\n")
+        
+        if fix.get('action') in ['delete', 'smart_delete']:
+            print(f"Applied deletion at line {line_no}")
+        else:
+            print(f"Applied {fix['action']} at line {line_no}")
+            if 'lines' in fix:
+                print("Fix applied:")
+                for line in fix['lines']:
+                    print(f"  + {line}")
+        print("Retrying...\n")
+    
+    if iteration >= max_iterations:
+        print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
+"""
 
 if __name__ == "__main__":
-    file_path = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/generated_executables/executable__run.py")
-    auto_fix(file_path)
+    file_path = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/generated_executables/executable__build_vqe_result.py")
+    auto_fix(Path(file_path))

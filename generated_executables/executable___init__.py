@@ -716,13 +716,7 @@ if __name__ == "__main__":
     self.estimator = estimator
     self.ansatz = ansatz
     self.optimizer = optimizer
-    # auto-fix: define gradient
-    gradient = None
     self.gradient = gradient
     # this has to go via getters and setters due to the VariationalAlgorithm interface
-    # auto-fix: define initial_point
-    initial_point = None
     self.initial_point = initial_point
-    # auto-fix: define callback
-    callback = None
     self.callback = callback
