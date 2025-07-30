@@ -5,10 +5,9 @@ import re
 import os
 from pathlib import Path
 
-max_iterations=50
 
 
-
+debug=False
 
 def get_fix_insertion_point(lines, error_line_idx):
     """
@@ -275,6 +274,7 @@ def create_mock_class_definition(class_name, indent):
         f"{indent}    def backend(self): return self",
         f"{indent}    def draw(self, *args, **kwargs): return 'Mock Circuit Drawing'",
         f"{indent}    def transpile(self, *args, **kwargs): return self",
+        
     ]
 
 
@@ -432,7 +432,7 @@ def find_complete_statement_range_improved(lines, error_line_idx):
     Improved version that better handles multi-line statements with proper bracket balancing.
     Returns (start_idx, end_idx) where both are inclusive.
     """
-    print(f"DEBUG: find_complete_statement_range_improved called with error_line_idx={error_line_idx}")
+    if debug: print(f"DEBUG: find_complete_statement_range_improved called with error_line_idx={error_line_idx}")
     
     # First, find the start of the statement by looking for assignments or other statement starters
     start_idx = error_line_idx
@@ -443,7 +443,7 @@ def find_complete_statement_range_improved(lines, error_line_idx):
         if not line:  # Skip empty lines
             continue
             
-        print(f"DEBUG: Checking line {i}: '{line}'")
+        if debug: print(f"DEBUG: Checking line {i}: '{line}'")
         
         # Check for assignment - this is usually the start of our statement
         if '=' in line and not line.startswith('==') and not line.startswith('!='):
@@ -451,13 +451,13 @@ def find_complete_statement_range_improved(lines, error_line_idx):
             equals_pos = line.find('=')
             before_equals = line[:equals_pos]
             if before_equals.count('"') % 2 == 0 and before_equals.count("'") % 2 == 0:
-                print(f"DEBUG: Found assignment start at line {i}")
+                if debug: print(f"DEBUG: Found assignment start at line {i}")
                 start_idx = i
                 break
         
         # Check for other statement starters
         if any(line.startswith(keyword) for keyword in ['def ', 'class ', 'if ', 'for ', 'while ', 'try:', 'with ', 'return ']):
-            print(f"DEBUG: Found statement start at line {i}")
+            if debug: print(f"DEBUG: Found statement start at line {i}")
             start_idx = i
             break
             
@@ -467,12 +467,12 @@ def find_complete_statement_range_improved(lines, error_line_idx):
             error_indent = len(lines[error_line_idx]) - len(lines[error_line_idx].lstrip())
             
             if current_indent < error_indent - 4:  # Allow some flexibility
-                print(f"DEBUG: Significant indentation change at line {i}, stopping")
+                if debug: print(f"DEBUG: Significant indentation change at line {i}, stopping")
                 break
                 
         start_idx = i
     
-    print(f"DEBUG: Statement starts at line {start_idx}")
+    if debug: print(f"DEBUG: Statement starts at line {start_idx}")
     
     # Now find the end by balancing brackets from the start
     end_idx = error_line_idx
@@ -495,21 +495,21 @@ def find_complete_statement_range_improved(lines, error_line_idx):
         bracket_count += line_bracket
         brace_count += line_brace
         
-        print(f"DEBUG: Line {i}: '{line.strip()}' | Parens: {paren_count}, Brackets: {bracket_count}, Braces: {brace_count}")
+        if debug: print(f"DEBUG: Line {i}: '{line.strip()}' | Parens: {paren_count}, Brackets: {bracket_count}, Braces: {brace_count}")
         
         end_idx = i
         
         # If we're past the error line and all brackets are balanced
         if i >= error_line_idx and paren_count <= 0 and bracket_count <= 0 and brace_count <= 0:
-            print(f"DEBUG: All brackets balanced at line {i}")
+            if debug: print(f"DEBUG: All brackets balanced at line {i}")
             break
             
         # Safety check: if we've gone too far past the error line and brackets are still unbalanced
         if i > error_line_idx + 20:
-            print(f"DEBUG: Safety break at line {i}")
+            if debug: print(f"DEBUG: Safety break at line {i}")
             break
     
-    print(f"DEBUG: Statement ends at line {end_idx}")
+    if debug: print(f"DEBUG: Statement ends at line {end_idx}")
     return start_idx, end_idx
 
 def smart_delete_statement(lines, error_line_idx):
@@ -517,19 +517,19 @@ def smart_delete_statement(lines, error_line_idx):
     Improved version that uses better range detection.
     Returns the modified lines, deleted content, and number of lines deleted.
     """
-    print(f"DEBUG: smart_delete_statement_improved called with error_line_idx={error_line_idx}")
+    if debug: print(f"DEBUG: smart_delete_statement_improved called with error_line_idx={error_line_idx}")
     
     # Use the improved range finder
     start_idx, end_idx = find_complete_statement_range_improved(lines, error_line_idx)
     
-    print(f"DEBUG: Will delete lines {start_idx} to {end_idx} (inclusive)")
+    if debug: print(f"DEBUG: Will delete lines {start_idx} to {end_idx} (inclusive)")
     
     # Get the deleted content for logging
     deleted_lines = lines[start_idx:end_idx + 1]
     
-    print("DEBUG: Lines to be deleted:")
+    if debug: print("DEBUG: Lines to be deleted:")
     for i, line in enumerate(deleted_lines):
-        print(f"  {start_idx + i}: '{line.rstrip()}'")
+        if debug: print(f"  {start_idx + i}: '{line.rstrip()}'")
     
     # Check if we're deleting a variable assignment - we might need to preserve the variable
     first_line = lines[start_idx].strip()
@@ -538,7 +538,7 @@ def smart_delete_statement(lines, error_line_idx):
     replacement_lines = []
     if assignment_match:
         var_name = assignment_match.group(1)
-        print(f"DEBUG: Found variable assignment: {var_name}")
+        if debug: print(f"DEBUG: Found variable assignment: {var_name}")
         
         # Get indentation from the first line
         indent_match = re.match(r'^(\s*)', lines[start_idx])
@@ -548,7 +548,7 @@ def smart_delete_statement(lines, error_line_idx):
         original_class = extract_class_from_assignment(deleted_lines)
         
         if original_class:
-            print(f"DEBUG: Extracted class name: {original_class}")
+            if debug: print(f"DEBUG: Extracted class name: {original_class}")
             # Create a mock class based on the original
             mock_class_name = f"Mock{original_class}"
             
@@ -558,7 +558,7 @@ def smart_delete_statement(lines, error_line_idx):
                 f"{indent}{var_name} = {mock_class_name}()  # mock instance of {original_class}"
             ]
         else:
-            print("DEBUG: No class name extracted, using generic mock")
+            if debug: print("DEBUG: No class name extracted, using generic mock")
             # Fallback to a generic mock object
             replacement_lines = [
                 f"{indent}# auto-fix: deleted problematic assignment, providing generic mock",
@@ -568,19 +568,19 @@ def smart_delete_statement(lines, error_line_idx):
                 f"{indent}    def __str__(self): return 'GenericMock()'",
                 f"{indent}{var_name} = _GenericMock()  # generic mock instance"
             ]
-    else:
-        print("DEBUG: No variable assignment found, just deleting")
+    #else:
+        if debug: print("DEBUG: No variable assignment found, just deleting")
     
     # Delete the problematic lines and insert replacements
-    print(f"DEBUG: Deleting lines {start_idx}:{end_idx + 1}")
+    if debug: print(f"DEBUG: Deleting lines {start_idx}:{end_idx + 1}")
     del lines[start_idx:end_idx + 1]
     
     if replacement_lines:
-        print(f"DEBUG: Inserting {len(replacement_lines)} replacement lines at position {start_idx}")
+        if debug: print(f"DEBUG: Inserting {len(replacement_lines)} replacement lines at position {start_idx}")
         lines[start_idx:start_idx] = replacement_lines
     
     lines_deleted_count = len(deleted_lines) - len(replacement_lines)
-    print(f"DEBUG: Net lines deleted: {lines_deleted_count}")
+    if debug: print(f"DEBUG: Net lines deleted: {lines_deleted_count}")
     
     return lines, deleted_lines, lines_deleted_count
 
@@ -668,7 +668,7 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
     indent_match = re.match(r'(\s*)', line_text)
     indent = indent_match.group(1) if indent_match else ''
 
-    print(f"Error type: {err_type}")
+    if debug: print(f"Error type: {err_type}")
     
     # Check if we're in an except block
     def is_in_except_block(lines, current_line_no):
@@ -897,18 +897,6 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
             ]}
         
             
-            """
-            elif 'takes no arguments' in err_msg or 'takes' in err_msg and 'arguments' in err_msg:
-                var_info = extract_variable_names(line_text)
-                func_calls = var_info['calls']
-                if func_calls:
-                    func_name = func_calls[0]
-                    return {'action': 'insert', 'lines': [
-                        f"{indent}# auto-fix: wrap function to accept any arguments",
-                        f"{indent}_orig_{func_name} = {func_name}",
-                        f"{indent}{func_name} = lambda *args, **kwargs: _orig_{func_name}() if callable(_orig_{func_name}) else None",
-                    ]}
-            """
             
 
         elif 'no len()' in err_msg:
@@ -968,36 +956,6 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
         fallback_lines.append(f"{indent}pass  # removed raise to allow execution to continue")
 
         return {'action': 'replace', 'lines': fallback_lines}
-
-
-        """
-        if try_variables:
-            # Remove duplicates while preserving order
-            unique_vars = []
-            for var in try_variables:
-                if var not in unique_vars:
-                    unique_vars.append(var)
-            
-            # Create assignments with inferred types
-            var_assignments = []
-            for var in unique_vars:
-                var_type = infer_variable_type(var, try_lines)
-                default_value = create_default_value(var_type)
-                var_assignments.append(f"{indent}{var} = {default_value}")
-            
-            # Special handling for raise statements - replace with pass
-            if 'raise ' in line_text:
-                return {'action': 'replace', 'lines': [
-                    f"{indent}# auto-fix: set try-block variables with appropriate types and skip raise",
-                ] + var_assignments + [
-                    f"{indent}pass  # skipped raise to continue execution"
-                ]}
-            else:
-                # For other errors in except blocks, just set variables
-                return {'action': 'insert', 'lines': [
-                    f"{indent}# auto-fix: set try-block variables with appropriate types",
-                ] + var_assignments}
-            """
     
     var_info = extract_variable_names(line_text)
     
@@ -1024,63 +982,8 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
             f"{indent}warnings.filterwarnings('ignore', category=RuntimeWarning)",
         ]}
     
-    """
-    # ============ ATTRIBUTE ERROR ============
-    if err_type == 'AttributeError':
-        attr_match = re.match(r"'(\w+)' object has no attribute '(\w+)'", err_msg)
-        if attr_match:
-            obj_type, missing_attr = attr_match.groups()
-            
-            # Find the full object path (e.g., self._estimator from self._estimator.run)
-            obj_path = None
-            attr_pattern = rf'([a-zA-Z_][\w\.]*)\s*\.\s*{re.escape(missing_attr)}\s*\('
-            path_match = re.search(attr_pattern, line_text)
-            if path_match:
-                obj_path = path_match.group(1)
-            else:
-                # Fallback: find any object.attribute pattern
-                fallback_match = re.search(r'([a-zA-Z_][\w\.]*)\s*\.', line_text)
-                obj_path = fallback_match.group(1) if fallback_match else 'obj'
-            
-            # Special handling for common cases
-            if missing_attr == 'run' and obj_type == 'function':
-                # Don't try to reassign 'self', handle the full path
-                if obj_path == 'self':
-                    # This shouldn't happen, but if it does, skip
-                    return {'action': 'insert', 'lines': [
-                        f"{indent}# auto-fix: cannot fix 'self' attribute error directly",
-                        f"{indent}pass",
-                    ]}
-                else:
-                    return {'action': 'insert', 'lines': [
-                        f"{indent}# auto-fix: replace {obj_path} with object having run() method",
-                        f"{indent}class _DummyRunner:",
-                        f"{indent}    def run(self, *args, **kwargs): return None",
-                        f"{indent}    def __call__(self, *args, **kwargs): return None",
-                        f"{indent}if callable({obj_path}) and not hasattr({obj_path}, 'run'):",
-                        f"{indent}    {obj_path} = _DummyRunner()",
-                    ]}
-            else:
-                # For other attribute errors, use setattr approach
-                if obj_path == 'self':
-                    # Can't setattr on self safely, try a different approach
-                    return {'action': 'insert', 'lines': [
-                        f"{indent}# auto-fix: mock missing attribute {missing_attr}",
-                        f"{indent}if not hasattr(self, '{missing_attr}'):",
-                        f"{indent}    self.__dict__['{missing_attr}'] = lambda *args, **kwargs: None",
-                    ]}
-                else:
-                    return {'action': 'insert', 'lines': [
-                        f"{indent}# auto-fix: add missing attribute {missing_attr}",
-                        f"{indent}if hasattr({obj_path.split('.')[0]}, '{obj_path.split('.')[1] if '.' in obj_path else missing_attr}'):",
-                        f"{indent}    if not hasattr({obj_path}, '{missing_attr}'):",
-                        f"{indent}        setattr({obj_path}, '{missing_attr}', lambda *args, **kwargs: None)",
-                        f"{indent}else:",
-                        f"{indent}    {obj_path.split('.')[0]}.{obj_path.split('.')[1] if '.' in obj_path else missing_attr} = type('MockObj', (), {{'{missing_attr}': lambda *a, **k: None}})()",
-                    ]}
-    """
 
-    """
+    
     # ============ ATTRIBUTE ERROR ============
     if err_type == 'AttributeError':
         attr_match = re.match(r"'(\w+)' object has no attribute '(\w+)'", err_msg)
@@ -1098,158 +1001,118 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
                 fallback_match = re.search(r'([a-zA-Z_][\w\.]*)\s*\.', line_text)
                 obj_path = fallback_match.group(1) if fallback_match else 'obj'
             
-            # Find the start of the complete statement to insert the fix before it
-            start_idx, _ = find_complete_statement_range(lines, line_no - 1)
+            # Determine where to insert the fix
+            insertion_idx, indent = get_fix_insertion_point(lines, line_no - 1)
             
-            # Get the indentation from the start of the statement
-            start_line = lines[start_idx]
-            indent_match = re.match(r'(\s*)', start_line)
-            indent = indent_match.group(1) if indent_match else ''
-            
-            # Special handling for common cases
-            if missing_attr == 'parameters' and 'ansatz' in obj_path:
-                return {'action': 'insert_before_statement', 
-                    'target_line': start_idx,
+            # Special handling for 'parameters' attribute (generalized from ansatz-specific)
+            if missing_attr == 'parameters':
+                # Extract the object name from the path (e.g., 'ansatz' from 'self.ansatz')
+                obj_name = obj_path.split('.')[-1] if '.' in obj_path else obj_path
+                
+                return {'action': 'insert_at_position', 
+                    'target_line': insertion_idx,
                     'lines': [
                     f"{indent}# auto-fix: ensure {obj_path} has {missing_attr} attribute",
-                    f"{indent}if hasattr(self, 'ansatz') and self.ansatz is not None:",
-                    f"{indent}    if not hasattr(self.ansatz, 'parameters'):",
+                    f"{indent}if hasattr({'.'.join(obj_path.split('.')[:-1]) if '.' in obj_path else 'self'}, '{obj_name}') and {obj_path} is not None:",
+                    f"{indent}    if not hasattr({obj_path}, '{missing_attr}'):",
                     f"{indent}        # Create mock parameters that can be iterated",
-                    f"{indent}        self.ansatz.parameters = ['param_0', 'param_1', 'param_2']",
+                    f"{indent}        {obj_path}.{missing_attr} = ['param_0', 'param_1', 'param_2']",
                     f"{indent}else:",
-                    f"{indent}    # Create mock ansatz with parameters",
-                    f"{indent}    class MockAnsatz:",
-                    f"{indent}        def __init__(self): self.parameters = ['param_0', 'param_1', 'param_2']",
-                    f"{indent}    self.ansatz = MockAnsatz()",
+                    f"{indent}    # Create mock {obj_name} with {missing_attr}",
+                    f"{indent}    class Mock{obj_name.capitalize()}:",
+                    f"{indent}        def __init__(self): self.{missing_attr} = ['param_0', 'param_1', 'param_2']",
+                    f"{indent}    {obj_path} = Mock{obj_name.capitalize()}()",
                 ]}
             
+            # Special handling for common iterable attributes
+            elif missing_attr in ['items', 'keys', 'values', 'data', 'results']:
+                return {'action': 'insert_at_position',
+                    'target_line': insertion_idx,
+                    'lines': [
+                    f"{indent}# auto-fix: ensure {obj_path} has {missing_attr} attribute",
+                    f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
+                    f"{indent}    # Create mock {missing_attr} method/attribute",
+                    f"{indent}    if '{missing_attr}' in ['items', 'keys', 'values']:",
+                    f"{indent}        setattr({obj_path}, '{missing_attr}', lambda: [])",
+                    f"{indent}    else:",
+                    f"{indent}        setattr({obj_path}, '{missing_attr}', [])",
+                ]}
+            
+            # Special handling for self attributes
             elif obj_path == 'self':
-                # Can't setattr on self safely, try a different approach
-                return {'action': 'insert_before_statement',
-                    'target_line': start_idx,
+                return {'action': 'insert_at_position',
+                    'target_line': insertion_idx,
                     'lines': [
                     f"{indent}# auto-fix: mock missing attribute {missing_attr}",
                     f"{indent}if not hasattr(self, '{missing_attr}'):",
                     f"{indent}    self.__dict__['{missing_attr}'] = lambda *args, **kwargs: None",
                 ]}
+            
+            # Generic attribute fix - works for any object and any attribute
             else:
-                # Generic attribute fix
-                base_obj = obj_path.split('.')[0]
-                return {'action': 'insert_before_statement',
-                    'target_line': start_idx,
-                    'lines': [
-                    f"{indent}# auto-fix: add missing attribute {missing_attr}",
-                    f"{indent}if hasattr({base_obj}, '{obj_path.split('.')[1] if '.' in obj_path else missing_attr}') and {obj_path} is not None:",
-                    f"{indent}    if not hasattr({obj_path}, '{missing_attr}'):",
-                    f"{indent}        setattr({obj_path}, '{missing_attr}', lambda *args, **kwargs: None)",
-                    f"{indent}else:",
-                    f"{indent}    # Create fallback object structure",
-                    f"{indent}    {obj_path} = type('MockObj', (), {{'{missing_attr}': lambda *a, **k: None}})()",
-                ]}
-    """
-
-    # ============ ATTRIBUTE ERROR ============
-    if err_type == 'AttributeError':
-        attr_match = re.match(r"'(\w+)' object has no attribute '(\w+)'", err_msg)
-        if not attr_match:
-            return None
-            
-        obj_type, missing_attr = attr_match.groups()
+                # Determine if we need a callable or simple value based on context
+                is_callable = '(' in line_text[line_text.find(missing_attr):line_text.find(missing_attr) + 50] if missing_attr in line_text else False
+                mock_value = "lambda *args, **kwargs: None" if is_callable else "None"
+                
+                # Split the object path to get base object and attribute chain
+                path_parts = obj_path.split('.')
+                base_obj = path_parts[0]
+                
+                if len(path_parts) == 1:
+                    # Simple case: obj.attr
+                    return {'action': 'insert_at_position',
+                        'target_line': insertion_idx,
+                        'lines': [
+                        f"{indent}# auto-fix: add missing attribute {missing_attr}",
+                        f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
+                        f"{indent}    setattr({obj_path}, '{missing_attr}', {mock_value})",
+                    ]}
+                else:
+                    # Complex case: obj.subobj.attr
+                    parent_path = '.'.join(path_parts[:-1])
+                    target_obj = path_parts[-1]
+                    
+                    return {'action': 'insert_at_position',
+                        'target_line': insertion_idx,
+                        'lines': [
+                        f"{indent}# auto-fix: add missing attribute {missing_attr}",
+                        f"{indent}if hasattr({parent_path}, '{target_obj}') and {obj_path} is not None:",
+                        f"{indent}    if not hasattr({obj_path}, '{missing_attr}'):",
+                        f"{indent}        setattr({obj_path}, '{missing_attr}', {mock_value})",
+                        f"{indent}else:",
+                        f"{indent}    # Create fallback object structure",
+                        f"{indent}    {obj_path} = type('MockObj', (), {{'{missing_attr}': {mock_value}}})()",
+                    ]}
         
-        # Find the full object path (e.g., self.ansatz from self.ansatz.parameters)
-        obj_path = None
-        attr_pattern = rf'([a-zA-Z_][\w\.]*)\s*\.\s*{re.escape(missing_attr)}'
-        path_match = re.search(attr_pattern, line_text)
-        if path_match:
-            obj_path = path_match.group(1)
         else:
-            # Fallback: find any object.attribute pattern
-            fallback_match = re.search(r'([a-zA-Z_][\w\.]*)\s*\.', line_text)
-            obj_path = fallback_match.group(1) if fallback_match else 'obj'
-        
-        # Determine where to insert the fix
-        insertion_idx, indent = get_fix_insertion_point(lines, line_no - 1)
-        
-        # Special handling for 'parameters' attribute (generalized from ansatz-specific)
-        if missing_attr == 'parameters':
-            # Extract the object name from the path (e.g., 'ansatz' from 'self.ansatz')
-            obj_name = obj_path.split('.')[-1] if '.' in obj_path else obj_path
-            
-            return {'action': 'insert_at_position', 
-                'target_line': insertion_idx,
-                'lines': [
-                f"{indent}# auto-fix: ensure {obj_path} has {missing_attr} attribute",
-                f"{indent}if hasattr({'.'.join(obj_path.split('.')[:-1]) if '.' in obj_path else 'self'}, '{obj_name}') and {obj_path} is not None:",
-                f"{indent}    if not hasattr({obj_path}, '{missing_attr}'):",
-                f"{indent}        # Create mock parameters that can be iterated",
-                f"{indent}        {obj_path}.{missing_attr} = ['param_0', 'param_1', 'param_2']",
-                f"{indent}else:",
-                f"{indent}    # Create mock {obj_name} with {missing_attr}",
-                f"{indent}    class Mock{obj_name.capitalize()}:",
-                f"{indent}        def __init__(self): self.{missing_attr} = ['param_0', 'param_1', 'param_2']",
-                f"{indent}    {obj_path} = Mock{obj_name.capitalize()}()",
-            ]}
-        
-        # Special handling for common iterable attributes
-        elif missing_attr in ['items', 'keys', 'values', 'data', 'results']:
-            return {'action': 'insert_at_position',
-                'target_line': insertion_idx,
-                'lines': [
-                f"{indent}# auto-fix: ensure {obj_path} has {missing_attr} attribute",
-                f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
-                f"{indent}    # Create mock {missing_attr} method/attribute",
-                f"{indent}    if '{missing_attr}' in ['items', 'keys', 'values']:",
-                f"{indent}        setattr({obj_path}, '{missing_attr}', lambda: [])",
-                f"{indent}    else:",
-                f"{indent}        setattr({obj_path}, '{missing_attr}', [])",
-            ]}
-        
-        # Special handling for self attributes
-        elif obj_path == 'self':
-            return {'action': 'insert_at_position',
-                'target_line': insertion_idx,
-                'lines': [
-                f"{indent}# auto-fix: mock missing attribute {missing_attr}",
-                f"{indent}if not hasattr(self, '{missing_attr}'):",
-                f"{indent}    self.__dict__['{missing_attr}'] = lambda *args, **kwargs: None",
-            ]}
-        
-        # Generic attribute fix - works for any object and any attribute
-        else:
-            # Determine if we need a callable or simple value based on context
-            is_callable = '(' in line_text[line_text.find(missing_attr):line_text.find(missing_attr) + 50] if missing_attr in line_text else False
-            mock_value = "lambda *args, **kwargs: None" if is_callable else "None"
-            
-            # Split the object path to get base object and attribute chain
-            path_parts = obj_path.split('.')
-            base_obj = path_parts[0]
-            
-            if len(path_parts) == 1:
-                # Simple case: obj.attr
-                return {'action': 'insert_at_position',
-                    'target_line': insertion_idx,
-                    'lines': [
-                    f"{indent}# auto-fix: add missing attribute {missing_attr}",
-                    f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
-                    f"{indent}    setattr({obj_path}, '{missing_attr}', {mock_value})",
-                ]}
-            else:
-                # Complex case: obj.subobj.attr
-                parent_path = '.'.join(path_parts[:-1])
-                target_obj = path_parts[-1]
+            # Handle AttributeError with non-standard error message format
+            # Try to extract object and attribute from the line_text directly
+            attr_access_match = re.search(r'([a-zA-Z_][\w\.]*)\s*\.\s*([a-zA-Z_]\w*)', line_text)
+            if attr_access_match:
+                obj_path, missing_attr = attr_access_match.groups()
+                
+                # Determine where to insert the fix
+                insertion_idx, indent = get_fix_insertion_point(lines, line_no - 1)
+                
+                # Generic fallback for any attribute access
+                is_callable = '(' in line_text[line_text.find(missing_attr):line_text.find(missing_attr) + 50] if missing_attr in line_text else False
+                mock_value = "lambda *args, **kwargs: None" if is_callable else "None"
                 
                 return {'action': 'insert_at_position',
                     'target_line': insertion_idx,
                     'lines': [
-                    f"{indent}# auto-fix: add missing attribute {missing_attr}",
-                    f"{indent}if hasattr({parent_path}, '{target_obj}') and {obj_path} is not None:",
-                    f"{indent}    if not hasattr({obj_path}, '{missing_attr}'):",
-                    f"{indent}        setattr({obj_path}, '{missing_attr}', {mock_value})",
-                    f"{indent}else:",
-                    f"{indent}    # Create fallback object structure",
-                    f"{indent}    {obj_path} = type('MockObj', (), {{'{missing_attr}': {mock_value}}})()",
+                    f"{indent}# auto-fix: handle non-standard AttributeError",
+                    f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
+                    f"{indent}    setattr({obj_path}, '{missing_attr}', {mock_value})",
                 ]}
-    
+            
+            # If we can't parse anything useful, create a generic attribute handler
+            return {'action': 'insert', 'lines': [
+                f"{indent}# auto-fix: generic AttributeError handler",
+                f"{indent}# Create a mock object to prevent further attribute errors",
+                f"{indent}_mock_obj = type('MockObj', (), {'__getattr__': lambda self, name: lambda *args, **kwargs: None})()",
+            ]}
+
     # ============ IMPORT ERRORS ============
     if err_type in ['ImportError', 'ModuleNotFoundError']:
         module_match = re.match(r"No module named '(\w+)'", err_msg)
@@ -1489,7 +1352,7 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
                 f"{indent}try:",
                 f"{indent}    pass  # original Qiskit operation",
                 f"{indent}except Exception as e:",
-                f"{indent}    print(f'Qiskit error bypassed: {{e}}')",
+                f"{indent}    if debug: print(f'Qiskit error bypassed: {{e}}')",
                 f"{indent}    # Provide mock result based on context",
                 f"{indent}    if 'observable' in locals():",
                 f"{indent}        converted_observable = 'I'",
@@ -1529,29 +1392,29 @@ def auto_fix_loop(target_path: Path):
     
     while iteration < max_iterations:
         iteration += 1
-        print(f"Iteration {iteration}...")
+        if debug: print(f"Iteration {iteration}...")
         
         proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
 
         if proc.returncode == 0:
-            print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
+            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
             break
 
         parsed = parse_traceback(proc.stderr, target_path)
-        print(parsed)
+        if debug: print(parsed)
         if not parsed:
-            print("Could not parse traceback; aborting.")
-            print("STDERR:", proc.stderr)
+            if debug: print("Could not parse traceback; aborting.")
+            if debug: print("STDERR:", proc.stderr)
             break
 
         err_type, err_msg, line_no = parsed
-        print(f"Detected {err_type} at line {line_no}: {err_msg}")
+        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
 
         lines = target_path.read_text().splitlines()
         idx = (line_no - 1) if line_no and line_no > 0 else 0
         line_text = lines[idx] if idx < len(lines) else ''
         
-        print(f"Error line: {line_text.strip()}")
+        if debug: print(f"Error line: {line_text.strip()}")
 
         fix = make_fix(err_type, err_msg, line_text, lines, line_no)
 
@@ -1570,20 +1433,20 @@ def auto_fix_loop(target_path: Path):
                 lines[idx + insert_offset + 1:idx + insert_offset + 1] = fix['lines_after']
 
         target_path.write_text("\n".join(lines) + "\n")
-        print(f"Applied {fix['action']} at line {line_no}")
-        print("Fix applied:")
+        if debug: print(f"Applied {fix['action']} at line {line_no}")
+        if debug: print("Fix applied:")
         for line in fix['lines']:
-            print(f"  + {line}")
-        print("Retrying...\n")
+            if debug: print(f"  + {line}")
+        if debug: print("Retrying...\n")
     
     if iteration >= max_iterations:
-        print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
+        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
 
 
 def auto_fix(file_path):
     script_path = Path(file_path)
     if not script_path.is_file():
-        print(f"Error: {script_path} not found.")
+        if debug: print(f"Error: {script_path} not found.")
         sys.exit(1)
 
     auto_fix_loop(script_path)
@@ -1596,37 +1459,37 @@ def auto_fix(target_path: Path):
     
     while iteration < max_iterations:
         iteration += 1
-        print(f"Iteration {iteration}...")
+        if debug: print(f"Iteration {iteration}...")
         
         proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
 
         if proc.returncode == 0:
-            print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
+            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
             break
 
         parsed = parse_traceback(proc.stderr, target_path)
-        print(parsed)
+        if debug: print(parsed)
         if not parsed:
-            print("Could not parse traceback; aborting.")
-            print("STDERR:", proc.stderr)
+            if debug: print("Could not parse traceback; aborting.")
+            if debug: print("STDERR:", proc.stderr)
             break
 
         err_type, err_msg, line_no = parsed
-        print(f"Detected {err_type} at line {line_no}: {err_msg}")
+        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
 
         lines = target_path.read_text().splitlines()
         idx = (line_no - 1) if line_no and line_no > 0 else 0
         line_text = lines[idx] if idx < len(lines) else ''
         
-        print(f"Error line: {line_text.strip()}")
+        if debug: print(f"Error line: {line_text.strip()}")
 
         fix = make_fix(err_type, err_msg, line_text, lines, line_no)
 
         # Check if we should stop due to unhandled error
         if isinstance(fix, dict) and fix.get('action') == 'stop':
-            print(f"⚠️  Unhandled error type: {fix['error_type']}")
-            print(f"⚠️  Error message: {fix['error_msg']}")
-            print("⚠️  Stopping auto-fix due to unhandled error type.")
+            if debug: print(f"⚠️  Unhandled error type: {fix['error_type']}")
+            if debug: print(f"⚠️  Error message: {fix['error_msg']}")
+            if debug: print("⚠️  Stopping auto-fix due to unhandled error type.")
             return  # This will exit the function and return to main
         
         # Continue with normal fix processing
@@ -1645,14 +1508,14 @@ def auto_fix(target_path: Path):
                 lines[idx + insert_offset + 1:idx + insert_offset + 1] = fix['lines_after']
 
         target_path.write_text("\n".join(lines) + "\n")
-        print(f"Applied {fix['action']} at line {line_no}")
-        print("Fix applied:")
+        if debug: print(f"Applied {fix['action']} at line {line_no}")
+        if debug: print("Fix applied:")
         for line in fix['lines']:
-            print(f"  + {line}")
-        print("Retrying...\n")
+            if debug: print(f"  + {line}")
+        if debug: print("Retrying...\n")
     
     if iteration >= max_iterations:
-        print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
+        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
 """
 """
 def auto_fix(target_path: Path):
@@ -1661,40 +1524,40 @@ def auto_fix(target_path: Path):
     
     while iteration < max_iterations:
         iteration += 1
-        print(f"Iteration {iteration}...")
+        if debug: print(f"Iteration {iteration}...")
         
         proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
 
         if proc.returncode == 0:
-            print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
+            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
             break
 
         parsed = parse_traceback(proc.stderr, target_path)
-        print(parsed)
+        if debug: print(parsed)
         if not parsed:
-            print("Could not parse traceback; aborting.")
-            print("STDERR:", proc.stderr)
+            if debug: print("Could not parse traceback; aborting.")
+            if debug: print("STDERR:", proc.stderr)
             break
 
         err_type, err_msg, line_no = parsed
-        print(f"Detected {err_type} at line {line_no}: {err_msg}")
+        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
 
         lines = target_path.read_text().splitlines()
         idx = (line_no - 1) if line_no and line_no > 0 else 0
         
         if idx >= len(lines):
-            print("Error line index out of range")
+            if debug: print("Error line index out of range")
             break
             
         line_text = lines[idx]
-        print(f"Error line: {line_text.strip()}")
+        if debug: print(f"Error line: {line_text.strip()}")
 
         fix = make_fix(err_type, err_msg, line_text, lines, line_no)
 
         if isinstance(fix, dict):
             if fix.get('action') == 'delete':
                 # Delete the problematic line
-                print(f"⚠️  Deleting problematic line: {line_text.strip()}")
+                if debug: print(f"⚠️  Deleting problematic line: {line_text.strip()}")
                 del lines[idx]
                 insert_offset = 0
             elif fix.get('action') == 'replace':
@@ -1713,16 +1576,16 @@ def auto_fix(target_path: Path):
         target_path.write_text("\n".join(lines) + "\n")
         
         if fix.get('action') == 'delete':
-            print(f"Deleted line {line_no}")
+            if debug: print(f"Deleted line {line_no}")
         else:
-            print(f"Applied {fix['action']} at line {line_no}")
-            print("Fix applied:")
+            if debug: print(f"Applied {fix['action']} at line {line_no}")
+            if debug: print("Fix applied:")
             for line in fix['lines']:
-                print(f"  + {line}")
-        print("Retrying...\n")
+                if debug: print(f"  + {line}")
+        if debug: print("Retrying...\n")
     
     if iteration >= max_iterations:
-        print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
+        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
 """
 
 
@@ -1784,11 +1647,11 @@ def handle_syntax_error(lines, line_no, error_msg):
     idx = (line_no - 1) if line_no and line_no > 0 else 0
     
     if idx >= len(lines):
-        print(f"⚠️  Syntax error line {line_no} is out of range")
+        if debug: print(f"⚠️  Syntax error line {line_no} is out of range")
         return lines
     
     problematic_line = lines[idx]
-    print(f"⚠️  Removing syntax error line {line_no}: {problematic_line.strip()}")
+    if debug: print(f"⚠️  Removing syntax error line {line_no}: {problematic_line.strip()}")
     
     # Simple approach: just delete the problematic line
     del lines[idx]
@@ -1816,73 +1679,73 @@ def check_for_syntax_errors(target_path):
         return True, ('CompileError', str(e), None)
 
 def auto_fix(target_path: Path):
-    max_iterations = 50
+    max_iterations = 15
     iteration = 0
     
     while iteration < max_iterations:
         iteration += 1
-        print(f"Iteration {iteration}...")
+        if debug: print(f"Iteration {iteration}...")
         
         # First, check for syntax errors before trying to execute
         has_syntax_error, syntax_error_info = check_for_syntax_errors(target_path)
         
         if has_syntax_error:
-            print(f"🔍 Syntax error detected before execution!")
+            if debug: print(f"🔍 Syntax error detected before execution!")
             err_type, err_msg, line_no = syntax_error_info
-            print(f"Detected {err_type} at line {line_no}: {err_msg}")
+            if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
             
             # Handle syntax error
             lines = target_path.read_text().splitlines()
             lines = handle_syntax_error(lines, line_no, err_msg)
             target_path.write_text("\n".join(lines) + "\n")
             
-            print(f"Applied syntax error fix at line {line_no}")
-            print("Retrying...\n")
+            if debug: print(f"Applied syntax error fix at line {line_no}")
+            if debug: print("Retrying...\n")
             continue
         
         # If no syntax errors, try to execute the file
         proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
 
         if proc.returncode == 0:
-            print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
+            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
             break
 
         # Check if this might be a syntax error that wasn't caught by compile()
         if 'SyntaxError' in proc.stderr:
-            print("🔍 Syntax error detected in execution output!")
+            if debug: print("🔍 Syntax error detected in execution output!")
             syntax_parsed = parse_syntax_error(proc.stderr, target_path)
             if syntax_parsed:
                 err_type, err_msg, line_no = syntax_parsed
-                print(f"Detected {err_type} at line {line_no}: {err_msg}")
+                if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
                 
                 # Handle syntax error
                 lines = target_path.read_text().splitlines()
                 lines = handle_syntax_error(lines, line_no, err_msg)
                 target_path.write_text("\n".join(lines) + "\n")
                 
-                print(f"Applied syntax error fix at line {line_no}")
-                print("Retrying...\n")
+                if debug: print(f"Applied syntax error fix at line {line_no}")
+                if debug: print("Retrying...\n")
                 continue
 
         # If not a syntax error, use the regular error handling
         parsed = parse_traceback(proc.stderr, target_path)
         if not parsed:
-            print("Could not parse traceback; aborting.")
-            print("STDERR:", proc.stderr)
+            if debug: print("Could not parse traceback; aborting.")
+            if debug: print("STDERR:", proc.stderr)
             break
 
         err_type, err_msg, line_no = parsed
-        print(f"Detected {err_type} at line {line_no}: {err_msg}")
+        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
 
         lines = target_path.read_text().splitlines()
         idx = (line_no - 1) if line_no and line_no > 0 else 0
         
         if idx >= len(lines):
-            print("Error line index out of range")
+            if debug: print("Error line index out of range")
             break
             
         line_text = lines[idx]
-        print(f"Error line: {line_text.strip()}")
+        if debug: print(f"Error line: {line_text.strip()}")
 
         fix = make_fix(err_type, err_msg, line_text, lines, line_no)
 
@@ -1901,13 +1764,13 @@ def auto_fix(target_path: Path):
             elif fix.get('action') == 'smart_delete':
                 # Use the pre-computed modified lines
                 lines = fix['modified_lines']
-                print(f"⚠️  Smart deletion applied - removed {fix['lines_deleted']} lines:")
+                if debug: print(f"⚠️  Smart deletion applied - removed {fix['lines_deleted']} lines:")
                 for deleted_line in fix['deleted_content']:
-                    print(f"  - {deleted_line.strip()}")
+                    if debug: print(f"  - {deleted_line.strip()}")
                 
             elif fix.get('action') == 'delete':
                 # Simple single line deletion (keep for compatibility)
-                print(f"⚠️  Deleting problematic line: {line_text.strip()}")
+                if debug: print(f"⚠️  Deleting problematic line: {line_text.strip()}")
                 del lines[idx]
                 
             elif fix.get('action') == 'replace':
@@ -1922,17 +1785,19 @@ def auto_fix(target_path: Path):
         target_path.write_text("\n".join(lines) + "\n")
         
         if fix.get('action') in ['delete', 'smart_delete']:
-            print(f"Applied deletion at line {line_no}")
+            if debug: print(f"Applied deletion at line {line_no}")
         else:
-            print(f"Applied {fix['action']} at line {line_no}")
+            #pass
+            if debug: print(f"Applied {fix['action']} at line {line_no}")
             if 'lines' in fix:
-                print("Fix applied:")
+                if debug: print("Fix applied:")
                 for line in fix['lines']:
-                    print(f"  + {line}")
-        print("Retrying...\n")
+                    if debug: print(f"  + {line}")
+        if debug: print("Retrying...\n")
     
-    if iteration >= max_iterations:
-        print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
+    if iteration >= max_iterations: 
+        pass #Nothing
+        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
 
 
 
@@ -1944,32 +1809,32 @@ def auto_fix(target_path: Path):
     
     while iteration < max_iterations:
         iteration += 1
-        print(f"Iteration {iteration}...")
+        if debug: print(f"Iteration {iteration}...")
         
         proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
 
         if proc.returncode == 0:
-            print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
+            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
             break
 
         parsed = parse_traceback(proc.stderr, target_path)
         if not parsed:
-            print("Could not parse traceback; aborting.")
-            print("STDERR:", proc.stderr)
+            if debug: print("Could not parse traceback; aborting.")
+            if debug: print("STDERR:", proc.stderr)
             break
 
         err_type, err_msg, line_no = parsed
-        print(f"Detected {err_type} at line {line_no}: {err_msg}")
+        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
 
         lines = target_path.read_text().splitlines()
         idx = (line_no - 1) if line_no and line_no > 0 else 0
         
         if idx >= len(lines):
-            print("Error line index out of range")
+            if debug: print("Error line index out of range")
             break
             
         line_text = lines[idx]
-        print(f"Error line: {line_text.strip()}")
+        if debug: print(f"Error line: {line_text.strip()}")
 
         fix = make_fix(err_type, err_msg, line_text, lines, line_no)
 
@@ -1988,13 +1853,13 @@ def auto_fix(target_path: Path):
             if fix.get('action') == 'smart_delete':
                 # Use the pre-computed modified lines
                 lines = fix['modified_lines']
-                print(f"⚠️  Smart deletion applied - removed {fix['lines_deleted']} lines:")
+                if debug: print(f"⚠️  Smart deletion applied - removed {fix['lines_deleted']} lines:")
                 for deleted_line in fix['deleted_content']:
-                    print(f"  - {deleted_line.strip()}")
+                    if debug: print(f"  - {deleted_line.strip()}")
                 
             elif fix.get('action') == 'delete':
                 # Simple single line deletion (keep for compatibility)
-                print(f"⚠️  Deleting problematic line: {line_text.strip()}")
+                if debug: print(f"⚠️  Deleting problematic line: {line_text.strip()}")
                 del lines[idx]
                 
             elif fix.get('action') == 'replace':
@@ -2009,19 +1874,19 @@ def auto_fix(target_path: Path):
         target_path.write_text("\n".join(lines) + "\n")
         
         if fix.get('action') in ['delete', 'smart_delete']:
-            print(f"Applied deletion at line {line_no}")
+            if debug: print(f"Applied deletion at line {line_no}")
         else:
-            print(f"Applied {fix['action']} at line {line_no}")
+            if debug: print(f"Applied {fix['action']} at line {line_no}")
             if 'lines' in fix:
-                print("Fix applied:")
+                if debug: print("Fix applied:")
                 for line in fix['lines']:
-                    print(f"  + {line}")
-        print("Retrying...\n")
+                    if debug: print(f"  + {line}")
+        if debug: print("Retrying...\n")
     
     if iteration >= max_iterations:
-        print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
+        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
 """
 
 if __name__ == "__main__":
-    file_path = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/generated_executables/executable__build_vqe_result.py")
+    file_path = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/generated_executables/executable_estimate_observables.py")
     auto_fix(Path(file_path))

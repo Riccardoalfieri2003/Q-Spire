@@ -87,7 +87,7 @@ class FunctionExecutionGenerator:
                 output_file = os.path.join(output_dir, f"executable_{func_name}.py")
                 with open(output_file, 'w', encoding='utf-8') as f:
                     f.write(executable_code.replace("nonlocal ",""))
-                print(f"Generated executable for function '{func_name}': {output_file}")
+                #print(f"Generated executable for function '{func_name}': {output_file}")
         
         return executables
     
@@ -1345,12 +1345,12 @@ except Exception as e:
         return '\n'.join(self.code_lines[start_line:end_line])
 
 
-# Example usage
+"""# Example usage
 if __name__ == "__main__":
     # python -m test.StaticCircuit  
 
     # For a file
-    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/qiskit_algorithms/minimum_eigensolvers/vqe.py")
+    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/qiskit_algorithms/eigensolvers/vqd.py")
 
     generator = FunctionExecutionGenerator()
     
@@ -1378,4 +1378,4 @@ if __name__ == "__main__":
     # executables = generator.analyze_and_generate_all_executables(file)
     # for func_name, code in executables.items():
     #     print(f"\n=== Executable code for {func_name} ===")
-    #     print(code[:200] + "..." if len(code) > 200 else code)
+    #     print(code[:200] + "..." if len(code) > 200 else code)"""
