@@ -4,6 +4,7 @@ from numpy import pi
 qreg_q = QuantumRegister (3, 'q')
 creg_c = ClassicalRegister (3, 'c')
 qc = QuantumCircuit (qreg_q, creg_c)
+qc.barrier ()
 qc.h (qreg_q)
 #qc.h(qreg_q[0])
 qc.p(pi / 2, qreg_q[0])

@@ -1,6 +1,7 @@
 from smells.utils.OperationCircuitTracker import analyze_quantum_file
 from smells.Detector import Detector
 from smells.IdQ.IdQ import IdQ
+from smells.utils.config_loader import get_detector_option
 
 
 @Detector.register(IdQ)
@@ -17,7 +18,7 @@ class IdQDetector(Detector):
         smells = []
 
         circuits = analyze_quantum_file(file)
-        threshold = 3
+        threshold = get_detector_option("IdQ", "threshold", fallback=3)
 
         for circuit_name, ops in circuits.items():
             last_op_index = {}

@@ -2,6 +2,7 @@ from smells.utils.OperationCircuitTracker import analyze_quantum_file
 from collections import defaultdict
 from smells.Detector import Detector
 from smells.IQ.IQ import IQ
+from smells.utils.config_loader import get_detector_option
 
 
 @Detector.register(IQ)
@@ -18,7 +19,7 @@ class IQDetector(Detector):
         smells = []
 
         circuits = analyze_quantum_file(file)
-        threshold = 2
+        threshold = get_detector_option("IQ", "threshold", fallback=2)
 
         for circuit_name, ops in circuits.items():
             qubit_op_indices = defaultdict(list)

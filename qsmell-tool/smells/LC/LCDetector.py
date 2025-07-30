@@ -12,6 +12,7 @@ from smells.Detector import Detector
 from smells.LC.LC import LC
 from smells.utils.OperationCircuitTracker import analyze_quantum_file
 from smells.utils.BackendAnalyzer import analyze_circuits_backends_runs
+from smells.utils.config_loader import get_detector_option
 
 import math
 from typing import Dict, List, Tuple, Any
@@ -335,42 +336,85 @@ class LCDetector(Detector):
 
         smells = []        
 
-        circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
-        mappings = map_circuits_to_backends(circuits, backends, runs)
+        error_threshold = get_detector_option("LC", "error", fallback=0)
 
-        for circuit, backend, circuit_name in mappings:
+        if error_threshold==0:
+
+            circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
+            mappings = map_circuits_to_backends(circuits, backends, runs)
+
+            for circuit, backend, circuit_name in mappings:
+                
+                # Test your functions
+                try:
+                    props = backend.properties()
+                    if props:
+
+                        gate_name = "CustomGate"
+                        max_error = error_threshold  # Retrieved from config
+
+                        l = max_operations_per_qubit(circuit)
+                        c = max_parallelism(circuit)
+
+                        likelihood=math.pow(1-max_error,l*c)
+
+                        # Heuristic thresholds — adjust as needed
+                        if likelihood<0.5:
+                            
+                            backend_class_name = backend.__class__.__name__ 
+
+                            smell = LC(
+                                likelihood=likelihood,
+                                error={gate_name:max_error},
+                                l=l,
+                                c=c,
+                                backend=backend_class_name,
+                                circuit_name=circuit_name,  # Use the captured name
+                                explanation="",
+                                suggestion=""
+                            )
+
+                            smells.append(smell)
+
+
+                except Exception as e:
+                    print(f"  Error: {e}")
             
-            # Test your functions
-            try:
-                props = backend.properties()
-                if props:
 
-                    gate_name, max_error = list(get_max_gate_error(props).items())[0]
-                    l = max_operations_per_qubit(circuit)
-                    c = max_parallelism(circuit)
+        else:
 
-                    likelihood=math.pow(1-max_error,l*c)
+            circuits, backends, runs = analyze_circuits_backends_runs(file)
 
-                    # Heuristic thresholds — adjust as needed
-                    if likelihood<0.5:
-                        
-                        backend_class_name = backend.__class__.__name__ 
+            for circuit_name, circuit in circuits.items():
 
-                        smell = LC(
-                            likelihood=likelihood,
-                            error={gate_name:max_error},
-                            l=l,
-                            c=c,
-                            backend=backend_class_name,
-                            circuit_name=circuit_name,  # Use the captured name
-                            explanation="",
-                            suggestion=""
-                        )
+                gate_name = "CustomGate"
+                max_error = error_threshold  # Retrieved from config
 
-                        smells.append(smell)
+                l = max_operations_per_qubit(circuit)
+                c = max_parallelism(circuit)
+
+                likelihood=math.pow(1-max_error,l*c)
+
+                # Heuristic thresholds — adjust as needed
+                if likelihood<0.5:
+
+                    smell = LC(
+                        likelihood=likelihood,
+                        error={gate_name:max_error},
+                        l=l,
+                        c=c,
+                        backend="Custom Backend",
+                        circuit_name=circuit_name,  # Use the captured name
+                        explanation="",
+                        suggestion=""
+                    )
+
+                    smells.append(smell)
 
 
-            except Exception as e:
-                print(f"  Error: {e}")
+
+
+
+
         
         return smells
