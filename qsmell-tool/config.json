@@ -79,7 +79,7 @@
       "Description": "Due to technological and physical limitations, the number of operations one can pass to a quantum computer is limited, therefore the circuit implementing the whole algorithm should be prepared in such a way that the number of sequential repeated set of operations to be performed is the least possible.",
       "Detector": {
         "default_values": {
-          "min_subcircuit_lenght":2,
+          "min_subcircuit_lenght":1,
           "min_num_smells":1
         },
         "custom_values": {}

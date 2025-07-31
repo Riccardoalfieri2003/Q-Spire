@@ -35,9 +35,9 @@ class ROCDetector(Detector):
             total_ops = len(operations)
             #print(f"Total operations: {total_ops}")
 
-            if total_ops < min_subcircuit_lenght * 2:
+            """if total_ops < min_subcircuit_lenght * 2:
                 #print("⏭️  Skipped — not enough operations")
-                continue
+                continue"""
 
             divisors = get_divisors(total_ops, min_subcircuit_lenght)
             #print(f"Valid divisors (≥ {threshold}): {divisors}")
