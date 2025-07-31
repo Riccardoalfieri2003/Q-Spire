@@ -19,7 +19,7 @@ class IQDetector(Detector):
         smells = []
 
         circuits = analyze_quantum_file(file)
-        threshold = get_detector_option("IQ", "threshold", fallback=2)
+        max_distanze = get_detector_option("IQ", "max_distanze", fallback=2)
 
         for circuit_name, ops in circuits.items():
             qubit_op_indices = defaultdict(list)
@@ -45,7 +45,7 @@ class IQDetector(Detector):
                     second_index, second_op_name, row, col_start, col_end = qubit_ops[1]
                     distance = second_index - first_index
 
-                    if distance >= threshold:
+                    if distance > max_distanze:
                         smell = IQ(
                             row=row,
                             column_start=col_start,

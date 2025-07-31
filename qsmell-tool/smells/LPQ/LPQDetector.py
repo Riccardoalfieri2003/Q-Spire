@@ -1,8 +1,7 @@
 import ast
 from smells.Detector import Detector
 from smells.LPQ.LPQ import LPQ
-
-
+from smells.utils.config_loader import get_detector_option
 
 @Detector.register(LPQ)
 class LPQDetector(Detector, ast.NodeVisitor):
@@ -55,7 +54,17 @@ class LPQDetector(Detector, ast.NodeVisitor):
                 )
                 smells.append(smell)
 
-        return smells
+        min_num_smells = get_detector_option("LPQ", "min_num_smells", fallback=1)
+        if len(smells)>=min_num_smells: return smells
+        else: return []
+
+
+
+
+
+
+
+        
 
     def visit_Assign(self, node: ast.Assign):
         """

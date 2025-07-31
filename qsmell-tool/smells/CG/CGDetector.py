@@ -1,7 +1,7 @@
 import ast
 from smells.Detector import Detector
 from smells.CG.CG import CG
-
+from smells.utils.config_loader import get_detector_option
 
 def resolve_matrix(node: ast.AST, variables: dict) -> any:
 
@@ -261,4 +261,6 @@ class CGDetector(Detector, ast.NodeVisitor):
                 suggestion=None
             ))
 
-        return smells
+        min_num_smells = get_detector_option("CG", "min_num_smells", fallback=1)
+        if len(smells)>=min_num_smells: return smells
+        else: return []

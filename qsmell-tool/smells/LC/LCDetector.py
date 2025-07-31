@@ -262,81 +262,13 @@ def explore_backend_structure(backends: Dict[str, Dict]):
 @Detector.register(LC)
 class LCDetector(Detector):
 
-    """
-    def detect(self, file):
-
-        with open(file, "r", encoding="utf-8") as file:
-            source_code = file.read()  
-
-        # 1. Load instrumentation code from file
-        with open("smells/LC/LCinstrumentation.py") as f:
-            instrumentation_code = f.read()
-
-        # 2. Combine instrumentation + source code + extraction logic
-        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as tmp:
-            tmp_path = tmp.name
-            tmp.write(textwrap.dedent(instrumentation_code) + "\n")
-            tmp.write("# Clear any previous state\n")
-            tmp.write("clear_run_log()\n")
-            tmp.write("# Execute the user code\n")
-            tmp.write(textwrap.dedent(source_code) + "\n")
-            tmp.write("# Store the results\n")
-            tmp.write("import builtins\n")
-            tmp.write("print(f'Run log before storing: {get_run_log()}')\n")
-            tmp.write("builtins.__run_log_result__ = get_run_log()\n")
-
-        try:
-            # 3. Run combined code
-            runpy.run_path(tmp_path, run_name="__main__")
-
-            # 4. Retrieve the run log from builtins
-            run_log = getattr(builtins, "__run_log_result__", [])
-            #return run_log  # Return the collected data
-        finally:
-            os.remove(tmp_path)
-            if hasattr(builtins, "__run_log_result__"):
-                del builtins.__run_log_result__
-
-
-        # 4. Extract runtime circuit info
-        smells = []
-
-        for circuit, backend, circuit_name in run_log:  # Now unpacking three values
-
-            max_gate_error=get_max_gate_error(backend.properties()) # this is the max error of the active gates of the backed
-            (gate_name, error_value), = max_gate_error.items()  # Note the comma after the tuple!
-
-            l = max_operations_per_qubit(circuit)
-            c = max_parallelism(circuit)
-
-            likelihood=math.pow(1-error_value,l*c)
-
-            # Heuristic thresholds — adjust as needed
-            if likelihood<0.5:
-                
-                backend_class_name = backend.__class__.__name__ 
-
-                smell = LC(
-                    likelihood=likelihood,
-                    error=max_gate_error,
-                    l=l,
-                    c=c,
-                    backend=backend_class_name,
-                    circuit_name=circuit_name,  # Use the captured name
-                    explanation="",
-                    suggestion=""
-                )
-
-                smells.append(smell)
-            
-        return smells
-        """
     
     def detect(self, file):
 
         smells = []        
 
-        error_threshold = get_detector_option("LC", "error", fallback=0)
+        error_threshold = get_detector_option("LC", "gate_error", fallback=0)
+        threshold = get_detector_option("LC", "threshold", fallback=0.5)
 
         if error_threshold==0:
 
@@ -350,16 +282,14 @@ class LCDetector(Detector):
                     props = backend.properties()
                     if props:
 
-                        gate_name = "CustomGate"
-                        max_error = error_threshold  # Retrieved from config
-
+                        gate_name, max_error = list(get_max_gate_error(props).items())[0]
                         l = max_operations_per_qubit(circuit)
                         c = max_parallelism(circuit)
 
                         likelihood=math.pow(1-max_error,l*c)
 
                         # Heuristic thresholds — adjust as needed
-                        if likelihood<0.5:
+                        if likelihood<threshold:
                             
                             backend_class_name = backend.__class__.__name__ 
 
@@ -396,7 +326,7 @@ class LCDetector(Detector):
                 likelihood=math.pow(1-max_error,l*c)
 
                 # Heuristic thresholds — adjust as needed
-                if likelihood<0.5:
+                if likelihood<threshold:
 
                     smell = LC(
                         likelihood=likelihood,

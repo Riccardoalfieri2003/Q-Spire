@@ -1,6 +1,7 @@
 from smells.utils.OperationCircuitTracker import analyze_quantum_file
 from smells.Detector import Detector
 from smells.ROC.ROC import ROC
+from smells.utils.config_loader import get_detector_option
 
 @Detector.register(ROC)
 class ROCDetector(Detector):
@@ -27,18 +28,18 @@ class ROCDetector(Detector):
         smells = []
         circuits = analyze_quantum_file(file)
 
-        threshold = 2  # minimum pattern size to consider
+        min_subcircuit_lenght = get_detector_option("ROC", "min_subcircuit_lenght", fallback=2)
 
         for circuit_name, operations in circuits.items():
             #print(f"\n🔍 Checking circuit: {circuit_name}")
             total_ops = len(operations)
             #print(f"Total operations: {total_ops}")
 
-            if total_ops < threshold * 2:
+            if total_ops < min_subcircuit_lenght * 2:
                 #print("⏭️  Skipped — not enough operations")
                 continue
 
-            divisors = get_divisors(total_ops, threshold)
+            divisors = get_divisors(total_ops, min_subcircuit_lenght)
             #print(f"Valid divisors (≥ {threshold}): {divisors}")
 
             for d in divisors:
@@ -80,4 +81,7 @@ class ROCDetector(Detector):
                     smells.append(smell)
                     break  # Only detect one ROC per circuit
 
-        return smells
+        
+        min_num_smells = get_detector_option("ROC", "min_num_smells", fallback=1)
+        if len(smells)>=min_num_smells: return smells
+        else: return []

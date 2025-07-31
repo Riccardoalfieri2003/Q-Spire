@@ -18,7 +18,7 @@ class IdQDetector(Detector):
         smells = []
 
         circuits = analyze_quantum_file(file)
-        threshold = get_detector_option("IdQ", "threshold", fallback=3)
+        max_distance = get_detector_option("IdQ", "max_distanze", fallback=2)
 
         for circuit_name, ops in circuits.items():
             last_op_index = {}
@@ -35,7 +35,7 @@ class IdQDetector(Detector):
                 for q in qubits:
                     if q in last_op_index:
                         distance = index - last_op_index[q]
-                        if distance > threshold:
+                        if distance > max_distance:
                             smell = IdQ(
                                 row=row,
                                 column_start=col_start,

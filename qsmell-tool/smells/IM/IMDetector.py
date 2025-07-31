@@ -1,6 +1,7 @@
 from smells.Detector import Detector
 from smells.IM.IM import IM
 from smells.utils.OperationCircuitTracker import analyze_quantum_file
+from smells.utils.config_loader import get_detector_option
 
 
 @Detector.register(IM)
@@ -44,4 +45,6 @@ class IMDetector(Detector):
                             )
                             smells.append(smell)
 
-        return smells
+        min_num_smells = get_detector_option("IM", "min_num_smells", fallback=1)
+        if len(smells)>=min_num_smells: return smells
+        else: return []
