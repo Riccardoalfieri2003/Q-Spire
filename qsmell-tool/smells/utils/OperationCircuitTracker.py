@@ -31,7 +31,7 @@ class QuantumCircuitAnalyzer:
             Dictionary mapping circuit names to lists of operation details
         """
         # Read the source code
-        with open(filepath, 'r') as f:
+        with open(filepath, 'r', encoding="utf-8") as f:
             source_code = f.read()
         
         if debug:

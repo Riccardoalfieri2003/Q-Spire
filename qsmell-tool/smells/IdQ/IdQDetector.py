@@ -35,7 +35,7 @@ class IdQDetector(Detector):
                 for q in qubits:
                     if q in last_op_index:
                         distance = index - last_op_index[q]
-                        if distance > max_distance:
+                        if distance >= max_distance:
                             smell = IdQ(
                                 row=row,
                                 column_start=col_start,

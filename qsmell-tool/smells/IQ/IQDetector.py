@@ -19,7 +19,7 @@ class IQDetector(Detector):
         smells = []
 
         circuits = analyze_quantum_file(file)
-        max_distanze = get_detector_option("IQ", "max_distanze", fallback=2)
+        max_distance = get_detector_option("IQ", "max_distanze", fallback=2)
 
         for circuit_name, ops in circuits.items():
             qubit_op_indices = defaultdict(list)
@@ -40,7 +40,7 @@ class IQDetector(Detector):
 
             # Check the distance between first and second operation for each qubit
             for q, qubit_ops in qubit_op_indices.items():
-                if len(qubit_ops) >= 2:
+                if len(qubit_ops) >= max_distance:
                     first_index, *_ = qubit_ops[0]
                     second_index, second_op_name, row, col_start, col_end = qubit_ops[1]
                     distance = second_index - first_index

@@ -31,7 +31,7 @@ class BackendAnalyzer:
             Tuple of (circuit_instances, backend_instances, run_executions)
         """
         # Read the source code
-        with open(filepath, 'r') as f:
+        with open(filepath, 'r', encoding="utf-8") as f:
             source_code = f.read()
         
         if debug:

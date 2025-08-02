@@ -512,9 +512,6 @@ def find_complete_statement_range_improved(lines, error_line_idx):
     if debug: print(f"DEBUG: Statement ends at line {end_idx}")
     return start_idx, end_idx
 
-
-
-
 def smart_delete_statement(lines, error_line_idx):
     """
     Improved version that uses better range detection.
@@ -1147,7 +1144,9 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
             return {'action': 'insert', 'lines': [
                 f"{indent}# auto-fix: generic AttributeError handler",
                 f"{indent}# Create a mock object to prevent further attribute errors",
-                f"{indent}_mock_obj = type('MockObj', (), {'__getattr__': lambda self, name: lambda *args, **kwargs: None})()",
+                #f"{indent}_mock_obj = type('MockObj', (), {'__getattr__': lambda self, name: lambda *args, **kwargs: None})()",
+                f"{indent}_mock_obj = type('MockObj', (), {{'__getattr__': lambda self, name: lambda *args, **kwargs: None}})()"
+
             ]}
 
     # ============ IMPORT ERRORS ============
@@ -1155,27 +1154,34 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
         module_match = re.match(r"No module named '(\w+)'", err_msg)
         if module_match:
             module_name = module_match.group(1)
-            return {'action': 'insert', 'lines': [
-                f"{indent}# auto-fix: create mock module {module_name}",
-                f"{indent}import sys",
-                f"{indent}from types import ModuleType",
-                f"{indent}if '{module_name}' not in sys.modules:",
-                f"{indent}    _mock_module = ModuleType('{module_name}')",
-                f"{indent}    _mock_module.__dict__.update({{k: lambda *a, **kw: None for k in dir(object)}})",
-                f"{indent}    sys.modules['{module_name}'] = _mock_module",
-            ]}
+            # Test if the module can be imported
+            try:
+                __import__(module_name)
+            except (ImportError, ModuleNotFoundError):
+                print(f"ERROR: Required library '{module_name}' is not installed.")
+                print(f"Please install it using: pip install {module_name}")
+                print("Stopping fix process...")
+                exit(1)
+            
+            # If import is successful, continue without adding any fix
+            return None  # or however you indicate "no action needed"
         else:
             # Generic import error
             import_match = re.search(r'from\s+(\w+)\s+import|import\s+(\w+)', line_text)
             if import_match:
                 module_name = import_match.group(1) or import_match.group(2)
-                return {'action': 'insert', 'lines': [
-                    f"{indent}# auto-fix: handle import error",
-                    f"{indent}try:",
-                    f"{indent}    pass  # original import will be attempted",
-                    f"{indent}except (ImportError, ModuleNotFoundError):",
-                    f"{indent}    {module_name} = type('MockModule', (), {{'__getattr__': lambda self, name: lambda *args, **kwargs: None}})()",
-                ]}
+                
+                # Test if the module can be imported
+                try:
+                    __import__(module_name)
+                except (ImportError, ModuleNotFoundError):
+                    print(f"ERROR: Required library '{module_name}' is not installed.")
+                    print(f"Please install it using: pip install {module_name}")
+                    print("Stopping fix process...")
+                    exit(1)
+                
+                # If import is successful, continue without adding any fix
+                return None  # or however you indicate "no action needed"
     
     # ============ LOOKUP ERRORS ============
     if err_type == 'IndexError':
@@ -1408,6 +1414,7 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
     # Use smart deletion for unhandled errors
     idx = (line_no - 1) if line_no and line_no > 0 else 0
     if idx >= len(lines):
+        print("Ci troviamo qui")
         return {'action': 'stop', 'error_type': err_type, 'error_msg': 'Line index out of range'}
 
     # Use smart deletion for multi-line statements  
@@ -1422,208 +1429,6 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
         'lines_deleted': lines_deleted
     }
     
-"""
-def auto_fix_loop(target_path: Path):
-    global max_iterations # Prevent infinite loops
-    iteration = 0
-    
-    while iteration < max_iterations:
-        iteration += 1
-        if debug: print(f"Iteration {iteration}...")
-        
-        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
-
-        if proc.returncode == 0:
-            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
-            break
-
-        parsed = parse_traceback(proc.stderr, target_path)
-        if debug: print(parsed)
-        if not parsed:
-            if debug: print("Could not parse traceback; aborting.")
-            if debug: print("STDERR:", proc.stderr)
-            break
-
-        err_type, err_msg, line_no = parsed
-        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
-
-        lines = target_path.read_text().splitlines()
-        idx = (line_no - 1) if line_no and line_no > 0 else 0
-        line_text = lines[idx] if idx < len(lines) else ''
-        
-        if debug: print(f"Error line: {line_text.strip()}")
-
-        fix = make_fix(err_type, err_msg, line_text, lines, line_no)
-
-        if isinstance(fix, dict):
-            if fix.get('action') == 'replace':
-                replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
-                lines[replace_start:replace_end] = fix['lines']
-                insert_offset = len(fix['lines'])
-            elif fix.get('action') == 'insert':
-                lines[idx:idx] = fix['lines']
-                insert_offset = len(fix['lines'])
-            else:
-                insert_offset = 0
-
-            if 'lines_after' in fix and isinstance(fix['lines_after'], list):
-                lines[idx + insert_offset + 1:idx + insert_offset + 1] = fix['lines_after']
-
-        target_path.write_text("\n".join(lines) + "\n")
-        if debug: print(f"Applied {fix['action']} at line {line_no}")
-        if debug: print("Fix applied:")
-        for line in fix['lines']:
-            if debug: print(f"  + {line}")
-        if debug: print("Retrying...\n")
-    
-    if iteration >= max_iterations:
-        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
-
-
-def auto_fix(file_path):
-    script_path = Path(file_path)
-    if not script_path.is_file():
-        if debug: print(f"Error: {script_path} not found.")
-        sys.exit(1)
-
-    auto_fix_loop(script_path)
-"""
-
-"""
-def auto_fix(target_path: Path):
-    max_iterations = 50  # Prevent infinite loops
-    iteration = 0
-    
-    while iteration < max_iterations:
-        iteration += 1
-        if debug: print(f"Iteration {iteration}...")
-        
-        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
-
-        if proc.returncode == 0:
-            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
-            break
-
-        parsed = parse_traceback(proc.stderr, target_path)
-        if debug: print(parsed)
-        if not parsed:
-            if debug: print("Could not parse traceback; aborting.")
-            if debug: print("STDERR:", proc.stderr)
-            break
-
-        err_type, err_msg, line_no = parsed
-        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
-
-        lines = target_path.read_text().splitlines()
-        idx = (line_no - 1) if line_no and line_no > 0 else 0
-        line_text = lines[idx] if idx < len(lines) else ''
-        
-        if debug: print(f"Error line: {line_text.strip()}")
-
-        fix = make_fix(err_type, err_msg, line_text, lines, line_no)
-
-        # Check if we should stop due to unhandled error
-        if isinstance(fix, dict) and fix.get('action') == 'stop':
-            if debug: print(f"⚠️  Unhandled error type: {fix['error_type']}")
-            if debug: print(f"⚠️  Error message: {fix['error_msg']}")
-            if debug: print("⚠️  Stopping auto-fix due to unhandled error type.")
-            return  # This will exit the function and return to main
-        
-        # Continue with normal fix processing
-        if isinstance(fix, dict):
-            if fix.get('action') == 'replace':
-                replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
-                lines[replace_start:replace_end] = fix['lines']
-                insert_offset = len(fix['lines'])
-            elif fix.get('action') == 'insert':
-                lines[idx:idx] = fix['lines']
-                insert_offset = len(fix['lines'])
-            else:
-                insert_offset = 0
-
-            if 'lines_after' in fix and isinstance(fix['lines_after'], list):
-                lines[idx + insert_offset + 1:idx + insert_offset + 1] = fix['lines_after']
-
-        target_path.write_text("\n".join(lines) + "\n")
-        if debug: print(f"Applied {fix['action']} at line {line_no}")
-        if debug: print("Fix applied:")
-        for line in fix['lines']:
-            if debug: print(f"  + {line}")
-        if debug: print("Retrying...\n")
-    
-    if iteration >= max_iterations:
-        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
-"""
-"""
-def auto_fix(target_path: Path):
-    max_iterations = 50
-    iteration = 0
-    
-    while iteration < max_iterations:
-        iteration += 1
-        if debug: print(f"Iteration {iteration}...")
-        
-        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
-
-        if proc.returncode == 0:
-            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
-            break
-
-        parsed = parse_traceback(proc.stderr, target_path)
-        if debug: print(parsed)
-        if not parsed:
-            if debug: print("Could not parse traceback; aborting.")
-            if debug: print("STDERR:", proc.stderr)
-            break
-
-        err_type, err_msg, line_no = parsed
-        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
-
-        lines = target_path.read_text().splitlines()
-        idx = (line_no - 1) if line_no and line_no > 0 else 0
-        
-        if idx >= len(lines):
-            if debug: print("Error line index out of range")
-            break
-            
-        line_text = lines[idx]
-        if debug: print(f"Error line: {line_text.strip()}")
-
-        fix = make_fix(err_type, err_msg, line_text, lines, line_no)
-
-        if isinstance(fix, dict):
-            if fix.get('action') == 'delete':
-                # Delete the problematic line
-                if debug: print(f"⚠️  Deleting problematic line: {line_text.strip()}")
-                del lines[idx]
-                insert_offset = 0
-            elif fix.get('action') == 'replace':
-                replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
-                lines[replace_start:replace_end] = fix['lines']
-                insert_offset = len(fix['lines'])
-            elif fix.get('action') == 'insert':
-                lines[idx:idx] = fix['lines']
-                insert_offset = len(fix['lines'])
-            else:
-                insert_offset = 0
-
-            if 'lines_after' in fix and isinstance(fix['lines_after'], list):
-                lines[idx + insert_offset + 1:idx + insert_offset + 1] = fix['lines_after']
-
-        target_path.write_text("\n".join(lines) + "\n")
-        
-        if fix.get('action') == 'delete':
-            if debug: print(f"Deleted line {line_no}")
-        else:
-            if debug: print(f"Applied {fix['action']} at line {line_no}")
-            if debug: print("Fix applied:")
-            for line in fix['lines']:
-                if debug: print(f"  + {line}")
-        if debug: print("Retrying...\n")
-    
-    if iteration >= max_iterations:
-        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
-"""
 
 
 
@@ -1715,13 +1520,502 @@ def check_for_syntax_errors(target_path):
         # Other compilation errors
         return True, ('CompileError', str(e), None)
 
-def auto_fix(target_path: Path):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import os
+import sys
+import subprocess
+import re
+import ast
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+
+
+
+
+
+import os
+import sys
+import subprocess
+import re
+import ast
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+
+class LineMapper:
+    """Tracks line number changes as code is modified during auto-fixing"""
+    
+    def __init__(self):
+        self.mappings = {}  # Dict with structure: {(original_line, start_col, end_col): [fixed_lines]}
+        self.line_offset = 0  # Current offset for line numbers
+    
+    def add_mapping(self, original_line: int, original_start_col: int, original_end_col: int,
+                   fixed_lines: List[int]):
+        """Add a mapping from original position to fixed lines"""
+        key = (original_line, original_start_col, original_end_col)
+        self.mappings[key] = fixed_lines
+    
+    def add_deletion_mapping(self, original_line: int, original_start_col: int, original_end_col: int):
+        """Add a mapping for a deleted line"""
+        key = (original_line, original_start_col, original_end_col)
+        self.mappings[key] = []  # Empty list indicates deletion
+    
+    def update_line_offset(self, offset_change: int):
+        """Update the line offset for subsequent operations"""
+        self.line_offset += offset_change
+    
+    def get_adjusted_line(self, original_line: int) -> int:
+        """Get the current line number accounting for all previous changes"""
+        return original_line + self.line_offset
+    
+    def update_all_mappings_after_line(self, after_line: int, offset: int):
+        """Update all existing mappings that come after a certain line due to insertions/deletions"""
+        updated_mappings = {}
+        for (orig_line, start_col, end_col), fixed_lines in self.mappings.items():
+            # The original line number never changes, but the fixed line numbers do
+            if fixed_lines:  # Only update if not deleted
+                # Update fixed lines that come after the change point
+                updated_fixed_lines = []
+                for fixed_line in fixed_lines:
+                    if fixed_line > after_line:
+                        updated_fixed_lines.append(fixed_line + offset)
+                    else:
+                        updated_fixed_lines.append(fixed_line)
+                updated_mappings[(orig_line, start_col, end_col)] = updated_fixed_lines
+            else:
+                # Keep deleted mappings as empty lists
+                updated_mappings[(orig_line, start_col, end_col)] = fixed_lines
+        self.mappings = updated_mappings
+
+
+"""
+def extract_main_function_lines(file_path: Path) -> Dict[int, Tuple[int, int]]:
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        main_lines = {}
+        
+        in_main_block = False
+        main_indent_level = None
+        
+        for line_no, line in enumerate(lines, 1):
+            stripped_line = line.strip()
+            
+            # Check for main block start
+            if stripped_line.startswith('if __name__') and '__main__' in stripped_line:
+                in_main_block = True
+                # Find the base indentation level for the main block
+                main_indent_level = len(line) - len(line.lstrip())
+                # Include the if __name__ line itself
+                start_col = len(line) - len(line.lstrip())
+                end_col = len(line.rstrip())
+                main_lines[line_no] = (start_col, end_col)
+                continue
+            
+            if in_main_block:
+                # Skip empty lines and comments (but still include them in mapping)
+                if not stripped_line:
+                    main_lines[line_no] = (0, 0)  # Empty line
+                    continue
+                    
+                if stripped_line.startswith('#'):
+                    start_col = line.find('#')
+                    end_col = len(line.rstrip())
+                    main_lines[line_no] = (start_col, end_col)
+                    continue
+                
+                # Calculate current line's indentation
+                current_indent = len(line) - len(line.lstrip())
+                
+                # If we're at or less than the main block's indentation level, we've left the main block
+                if current_indent <= main_indent_level and stripped_line:
+                    # Check if this is another top-level construct (class, def, etc.)
+                    if any(stripped_line.startswith(keyword) for keyword in ['def ', 'class ', 'if ', 'for ', 'while ', 'try:', 'with ']):
+                        in_main_block = False
+                        break
+                
+                # We're still in the main block
+                if stripped_line:
+                    start_col = current_indent
+                    end_col = len(line.rstrip())
+                    main_lines[line_no] = (start_col, end_col)
+                else:
+                    main_lines[line_no] = (0, 0)  # Empty line within main block
+        
+        return main_lines
+    except Exception as e:
+        print(f"Error extracting main function lines: {e}")
+        return {}
+"""
+
+def extract_main_function_lines(file_path: Path) -> Dict[int, Tuple[int, int]]:
+    """Extract line numbers and column positions of all lines in the file"""
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        all_lines = {}
+        
+        for line_no, line in enumerate(lines, 1):
+            stripped_line = line.strip()
+            
+            # Handle empty lines
+            if not stripped_line:
+                all_lines[line_no] = (0, 0)  # Empty line
+                continue
+            
+            # Handle comment lines
+            if stripped_line.startswith('#'):
+                start_col = line.find('#')
+                end_col = len(line.rstrip())
+                all_lines[line_no] = (start_col, end_col)
+                continue
+            
+            # Handle regular lines with content
+            start_col = len(line) - len(line.lstrip())  # Indentation level
+            end_col = len(line.rstrip())  # End of content (excluding trailing whitespace)
+            all_lines[line_no] = (start_col, end_col)
+        
+        return all_lines
+    except Exception as e:
+        print(f"Error extracting file lines: {e}")
+        return {}
+
+
+
+
+def check_for_syntax_errors(file_path: Path) -> Tuple[bool, Optional[Tuple[str, str, int]]]:
+    """Check if file has syntax errors without executing it"""
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        compile(content, str(file_path), 'exec')
+        return False, None
+    except SyntaxError as e:
+        return True, ("SyntaxError", str(e), e.lineno)
+
+def parse_syntax_error(stderr: str, file_path: Path) -> Optional[Tuple[str, str, int]]:
+    """Parse syntax error from stderr output"""
+    lines = stderr.split('\n')
+    for line in lines:
+        if 'SyntaxError' in line and 'line' in line:
+            # Try to extract line number
+            match = re.search(r'line (\d+)', line)
+            if match:
+                line_no = int(match.group(1))
+                return ("SyntaxError", line, line_no)
+    return None
+
+def parse_traceback(stderr: str, file_path: Path) -> Optional[Tuple[str, str, int]]:
+    """Parse error traceback to extract error type, message, and line number"""
+    lines = stderr.split('\n')
+    error_line = None
+    line_no = None
+    
+    # Find the line with file reference
+    for line in lines:
+        if str(file_path) in line and 'line' in line:
+            match = re.search(r'line (\d+)', line)
+            if match:
+                line_no = int(match.group(1))
+                break
+    
+    # Find the error type and message
+    for line in reversed(lines):
+        if line.strip() and ':' in line and any(err in line for err in ['Error', 'Exception']):
+            error_line = line.strip()
+            break
+    
+    if error_line and line_no:
+        # Split error type and message
+        if ':' in error_line:
+            error_type = error_line.split(':')[0].strip()
+            error_msg = ':'.join(error_line.split(':')[1:]).strip()
+            return (error_type, error_msg, line_no)
+    
+    return None
+"""
+def make_fix(err_type: str, err_msg: str, line_text: str, lines: List[str], line_no: int) -> Optional[Dict]:
+    # This is a simplified version - you'll need to implement your actual fix logic
+    # Based on your code, it should return a dict with 'action' and other relevant fields
+    
+    if 'NameError' in err_type:
+        # Example: Try to add missing import or variable definition
+        return {
+            'action': 'insert',
+            'lines': ['# Auto-generated fix for NameError', f'# Original error: {err_msg}']
+        }
+    elif 'IndentationError' in err_type:
+        # Fix indentation
+        return {
+            'action': 'replace',
+            'lines': [line_text.lstrip()],  # Remove extra indentation
+            'replace_range': (line_no - 1, line_no)
+        }
+    elif 'SyntaxError' in err_type:
+        # Delete problematic line
+        return {
+            'action': 'delete'
+        }
+    else:
+        # Default: comment out the problematic line
+        return {
+            'action': 'replace',
+            'lines': [f'# {line_text.strip()} # Auto-commented due to {err_type}'],
+            'replace_range': (line_no - 1, line_no)
+        }
+"""
+
+def handle_syntax_error(lines: List[str], line_no: int, err_msg: str) -> List[str]:
+    """Handle syntax error by removing the problematic line"""
+    if line_no and 1 <= line_no <= len(lines):
+        idx = line_no - 1
+        del lines[idx]
+    return lines
+
+def handle_syntax_error_with_mapping(lines: List[str], line_no: int, err_msg: str, 
+                                   mapper: LineMapper, main_lines: Dict[int, Tuple[int, int]]) -> List[str]:
+    """Handle syntax error by removing the line and updating mapping"""
+    if line_no and 1 <= line_no <= len(lines):
+        idx = line_no - 1
+        
+        # Update mapping for deleted line if it's in main (set to empty list)
+        if line_no in main_lines:
+            start_col, end_col = main_lines[line_no]
+            key = (line_no, start_col, end_col)
+            if key in mapper.mappings:
+                mapper.mappings[key] = []  # Mark as deleted
+        
+        # Remove the line
+        del lines[idx]
+        
+        # Update all mappings after this line (shift up by 1)
+        mapper.update_all_mappings_after_line(line_no, -1)
+        mapper.update_line_offset(-1)
+    
+    return lines
+
+def apply_fix_with_mapping(lines: List[str], fix: Dict, line_no: int, 
+                         mapper: LineMapper, main_lines: Dict[int, Tuple[int, int]]) -> List[str]:
+    """Apply fix and update line mappings"""
+    idx = (line_no - 1) if line_no and line_no > 0 else 0
+    
+    if isinstance(fix, dict):
+        action = fix.get('action')
+        
+        if action == 'insert_at_position':
+            target_idx = fix['target_line']
+            insert_lines = fix['lines']
+            
+            # Insert the new lines
+            lines[target_idx:target_idx] = insert_lines
+            
+            # Update all mappings after the insertion point
+            lines_added = len(insert_lines)
+            mapper.update_all_mappings_after_line(target_idx, lines_added)
+            mapper.update_line_offset(lines_added)
+            
+        elif action == 'insert_before_statement':
+            target_idx = fix['target_line']
+            insert_lines = fix['lines']
+            
+            lines[target_idx:target_idx] = insert_lines
+            lines_added = len(insert_lines)
+            
+            # Update all mappings after the insertion point
+            mapper.update_all_mappings_after_line(target_idx, lines_added)
+            mapper.update_line_offset(lines_added)
+            
+        elif action == 'smart_delete':
+            if 'modified_lines' in fix:
+                # Use pre-computed modified lines
+                lines[:] = fix['modified_lines']
+                lines_deleted = fix.get('lines_deleted', 0)
+                
+                # Update mappings for deleted lines
+                for i in range(lines_deleted):
+                    original_line_num = line_no + i
+                    if original_line_num in main_lines:
+                        start_col, end_col = main_lines[original_line_num]
+                        key = (original_line_num, start_col, end_col)
+                        if key in mapper.mappings:
+                            mapper.mappings[key] = []  # Mark as deleted
+                
+                # Update all mappings after the deletion
+                mapper.update_all_mappings_after_line(line_no + lines_deleted - 1, -lines_deleted)
+                mapper.update_line_offset(-lines_deleted)
+            else:
+                # Fallback to single line deletion
+                if idx < len(lines):
+                    if line_no in main_lines:
+                        start_col, end_col = main_lines[line_no]
+                        key = (line_no, start_col, end_col)
+                        if key in mapper.mappings:
+                            mapper.mappings[key] = []  # Mark as deleted
+                    
+                    del lines[idx]
+                    mapper.update_all_mappings_after_line(line_no, -1)
+                    mapper.update_line_offset(-1)
+                
+        elif action == 'delete':
+            # Single line deletion
+            if idx < len(lines):
+                # Update mapping for deleted line if in main (set to empty list)
+                if line_no in main_lines:
+                    start_col, end_col = main_lines[line_no]
+                    key = (line_no, start_col, end_col)
+                    if key in mapper.mappings:
+                        mapper.mappings[key] = []  # Mark as deleted
+                
+                # Remove the line
+                del lines[idx]
+                
+                # Update all mappings after this line (shift up by 1)
+                mapper.update_all_mappings_after_line(line_no, -1)
+                mapper.update_line_offset(-1)
+                        
+        elif action == 'replace':
+            replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
+            replacement_lines = fix['lines']
+            
+            # Calculate which original lines are being replaced
+            original_lines_count = replace_end - replace_start
+            replacement_count = len(replacement_lines)
+            
+            # Update mappings for original lines being replaced
+            for i in range(original_lines_count):
+                original_line_num = replace_start + 1 + i  # +1 because replace_start is 0-indexed
+                if original_line_num in main_lines:
+                    start_col, end_col = main_lines[original_line_num]
+                    key = (original_line_num, start_col, end_col)
+                    
+                    if key in mapper.mappings:
+                        # Calculate which fixed lines this original line maps to
+                        current_line = mapper.get_adjusted_line(original_line_num)
+                        if i < replacement_count:
+                            # Maps to replacement line(s)
+                            if original_lines_count == 1 and replacement_count > 1:
+                                # 1 original line -> multiple replacement lines
+                                fixed_lines = list(range(current_line, current_line + replacement_count))
+                            else:
+                                # 1:1 or many:many mapping
+                                fixed_lines = [current_line + i] if i < replacement_count else []
+                            
+                            mapper.mappings[key] = fixed_lines
+                        else:
+                            # More original lines than replacement lines - mark as deleted
+                            mapper.mappings[key] = []
+            
+            # Replace the lines
+            lines[replace_start:replace_end] = replacement_lines
+            
+            # Update all mappings after the replacement
+            lines_diff = replacement_count - original_lines_count
+            if lines_diff != 0:
+                mapper.update_all_mappings_after_line(replace_end, lines_diff)
+                mapper.update_line_offset(lines_diff)
+                        
+        elif action == 'insert':
+            insert_lines = fix['lines']
+            lines[idx:idx] = insert_lines
+            
+            lines_added = len(insert_lines)
+            # Update all mappings after the insertion point
+            mapper.update_all_mappings_after_line(line_no, lines_added)
+            mapper.update_line_offset(lines_added)
+    
+    return lines
+
+def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool, Optional[Dict]]:
+    """
+    Auto-fix a Python file and return success status with complete line mappings.
+    
+    Args:
+        target_path: Path to the Python file to fix
+        debug: Whether to print debug information
+        
+    Returns:
+        Tuple of (success: bool, mappings: Dict or None)
+        - success: True if file was successfully fixed and runs without errors
+        - mappings: Dictionary with structure {(original_line, start_col, end_col): [fixed_lines]}
+                   None if the process failed
+    """
     max_iterations = 15
     iteration = 0
+    
+    # Initialize the line mapper
+    mapper = LineMapper()
+    # Extract main function lines from original file
+    original_main_lines = extract_main_function_lines(target_path)
+    
+    # Initialize mappings for ALL main function lines (1:1 mapping initially)
+    for line_no, (start_col, end_col) in original_main_lines.items():
+        mapper.add_mapping(line_no, start_col, end_col, [line_no])
+    
+    if debug:
+        print(f"🚀 Starting auto-fix process for: {target_path}")
+        print(f"📊 Found {len(original_main_lines)} lines in main function")
+        print(f"📋 Initialized {len(mapper.mappings)} line mappings")
+        print("=" * 60)
     
     while iteration < max_iterations:
         iteration += 1
         if debug: print(f"Iteration {iteration}...")
+        
+        # Re-extract main lines if they were empty due to syntax errors
+        if not original_main_lines:
+            original_main_lines = extract_main_function_lines(target_path)
+            if debug and original_main_lines:
+                print(f"📊 Extracted {len(original_main_lines)} main function lines after syntax fix")
         
         # First, check for syntax errors before trying to execute
         has_syntax_error, syntax_error_info = check_for_syntax_errors(target_path)
@@ -1731,21 +2025,25 @@ def auto_fix(target_path: Path):
             err_type, err_msg, line_no = syntax_error_info
             if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
             
-            # Handle syntax error
+            # Handle syntax error with mapping
             lines = target_path.read_text(encoding="utf-8").splitlines()
-            lines = handle_syntax_error(lines, line_no, err_msg)
+            lines = handle_syntax_error_with_mapping(lines, line_no, err_msg, mapper, original_main_lines)
             target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             
-            if debug: print(f"Applied syntax error fix at line {line_no}")
-            if debug: print("Retrying...\n")
+            if debug: print(f"✅ Applied syntax error fix at line {line_no}")
+            if debug: print("🔄 Retrying...\n")
             continue
         
         # If no syntax errors, try to execute the file
+        if debug: print("🏃 Executing file to check for runtime errors...")
         proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
 
         if proc.returncode == 0:
-            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
-            break
+            if debug: 
+                print(f"\n🎉 SUCCESS! {target_path.name} runs without errors after {iteration} iterations!")
+                print(f"📈 Total line mappings created: {len(mapper.mappings)}")
+                print("=" * 60)
+            return True, mapper.mappings
 
         # Check if this might be a syntax error that wasn't caught by compile()
         if 'SyntaxError' in proc.stderr:
@@ -1755,175 +2053,142 @@ def auto_fix(target_path: Path):
                 err_type, err_msg, line_no = syntax_parsed
                 if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
                 
-                # Handle syntax error
+                # Handle syntax error with mapping
                 lines = target_path.read_text(encoding="utf-8").splitlines()
-                lines = handle_syntax_error(lines, line_no, err_msg)
+                lines = handle_syntax_error_with_mapping(lines, line_no, err_msg, mapper, original_main_lines)
                 target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
                 
-                if debug: print(f"Applied syntax error fix at line {line_no}")
-                if debug: print("Retrying...\n")
+                if debug: print(f"✅ Applied syntax error fix at line {line_no}")
+                if debug: print("🔄 Retrying...\n")
                 continue
+
+        # Check for import errors and stop if needed
+        if 'ImportError' in proc.stderr or 'ModuleNotFoundError' in proc.stderr:
+            if debug: print("🚫 Import error detected - checking if required libraries are missing...")
+            
+            # Parse the import error to get the module name
+            import_error_match = re.search(r"No module named '(\w+)'", proc.stderr)
+            if import_error_match:
+                missing_module = import_error_match.group(1)
+                print(f"❌ ERROR: Required library '{missing_module}' is not installed.")
+                print(f"📦 Please install it using: pip install {missing_module}")
+                print("🛑 Stopping auto-fix process...")
+                return False, None
 
         # If not a syntax error, use the regular error handling
         parsed = parse_traceback(proc.stderr, target_path)
         if not parsed:
-            if debug: print("Could not parse traceback; aborting.")
-            if debug: print("STDERR:", proc.stderr)
-            break
+            if debug: 
+                print("❌ Could not parse error traceback; aborting.")
+                print("STDERR:", proc.stderr)
+            return False, None
 
         err_type, err_msg, line_no = parsed
-        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
+        if debug: print(f"🐛 Detected {err_type} at line {line_no}: {err_msg}")
 
         lines = target_path.read_text(encoding="utf-8").splitlines()
         idx = (line_no - 1) if line_no and line_no > 0 else 0
         
         if idx >= len(lines):
-            if debug: print("Error line index out of range")
-            break
+            if debug: print("❌ Error line index out of range")
+            return False, None
             
         line_text = lines[idx]
-        if debug: print(f"Error line: {line_text.strip()}")
+        if debug: print(f"🔍 Error line content: {line_text.strip()}")
 
         fix = make_fix(err_type, err_msg, line_text, lines, line_no)
 
         if isinstance(fix, dict):
-
-            if fix.get('action') == 'insert_at_position':
-                # Insert at the specified position
-                target_idx = fix['target_line']
-                lines[target_idx:target_idx] = fix['lines']
-
-            elif fix.get('action') == 'insert_before_statement':
-                # Insert before the target line (usually the start of a statement)
-                target_idx = fix['target_line']
-                lines[target_idx:target_idx] = fix['lines']
-
-            elif fix.get('action') == 'smart_delete':
-                # Use the pre-computed modified lines
-                lines = fix['modified_lines']
-                if debug: print(f"⚠️  Smart deletion applied - removed {fix['lines_deleted']} lines:")
-                for deleted_line in fix['deleted_content']:
-                    if debug: print(f"  - {deleted_line.strip()}")
-                
-            elif fix.get('action') == 'delete':
-                # Simple single line deletion (keep for compatibility)
-                if debug: print(f"⚠️  Deleting problematic line: {line_text.strip()}")
-                del lines[idx]
-                
-            elif fix.get('action') == 'replace':
-                replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
-                lines[replace_start:replace_end] = fix['lines']
-                
-            elif fix.get('action') == 'insert':
-                lines[idx:idx] = fix['lines']
-                
-            # Handle other actions...
-
-        target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        
-        if fix.get('action') in ['delete', 'smart_delete']:
-            if debug: print(f"Applied deletion at line {line_no}")
-        else:
-            #pass
-            if debug: print(f"Applied {fix['action']} at line {line_no}")
-            if 'lines' in fix:
-                if debug: print("Fix applied:")
-                for line in fix['lines']:
-                    if debug: print(f"  + {line}")
-        if debug: print("Retrying...\n")
-    
-    if iteration >= max_iterations: 
-        pass #Nothing
-        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
-
-
-
-
-"""
-def auto_fix(target_path: Path):
-    max_iterations = 50
-    iteration = 0
-    
-    while iteration < max_iterations:
-        iteration += 1
-        if debug: print(f"Iteration {iteration}...")
-        
-        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
-
-        if proc.returncode == 0:
-            if debug: print(f"\n✅ {target_path.name} ran successfully after {iteration} iterations!")
-            break
-
-        parsed = parse_traceback(proc.stderr, target_path)
-        if not parsed:
-            if debug: print("Could not parse traceback; aborting.")
-            if debug: print("STDERR:", proc.stderr)
-            break
-
-        err_type, err_msg, line_no = parsed
-        if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
-
-        lines = target_path.read_text().splitlines()
-        idx = (line_no - 1) if line_no and line_no > 0 else 0
-        
-        if idx >= len(lines):
-            if debug: print("Error line index out of range")
-            break
+            # Apply fix with mapping
+            lines = apply_fix_with_mapping(lines, fix, line_no, mapper, original_main_lines)
+            target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             
-        line_text = lines[idx]
-        if debug: print(f"Error line: {line_text.strip()}")
-
-        fix = make_fix(err_type, err_msg, line_text, lines, line_no)
-
-        if isinstance(fix, dict):
-
-            if fix.get('action') == 'insert_at_position':
-                # Insert at the specified position
-                target_idx = fix['target_line']
-                lines[target_idx:target_idx] = fix['lines']
-
-            if fix.get('action') == 'insert_before_statement':
-                # Insert before the target line (usually the start of a statement)
-                target_idx = fix['target_line']
-                lines[target_idx:target_idx] = fix['lines']
-
-            if fix.get('action') == 'smart_delete':
-                # Use the pre-computed modified lines
-                lines = fix['modified_lines']
-                if debug: print(f"⚠️  Smart deletion applied - removed {fix['lines_deleted']} lines:")
-                for deleted_line in fix['deleted_content']:
-                    if debug: print(f"  - {deleted_line.strip()}")
-                
-            elif fix.get('action') == 'delete':
-                # Simple single line deletion (keep for compatibility)
-                if debug: print(f"⚠️  Deleting problematic line: {line_text.strip()}")
-                del lines[idx]
-                
-            elif fix.get('action') == 'replace':
-                replace_start, replace_end = fix.get('replace_range', (idx, idx + 1))
-                lines[replace_start:replace_end] = fix['lines']
-                
-            elif fix.get('action') == 'insert':
-                lines[idx:idx] = fix['lines']
-                
-            # Handle other actions...
-
-        target_path.write_text("\n".join(lines) + "\n")
-        
-        if fix.get('action') in ['delete', 'smart_delete']:
-            if debug: print(f"Applied deletion at line {line_no}")
+            if fix.get('action') in ['delete', 'smart_delete']:
+                if debug: print(f"🗑️  Applied deletion at line {line_no}")
+            else:
+                if debug: print(f"🔧 Applied {fix['action']} at line {line_no}")
+                if 'lines' in fix and debug:
+                    print("   Fix content:")
+                    for line in fix['lines']:
+                        if debug: print(f"     + {line}")
         else:
-            if debug: print(f"Applied {fix['action']} at line {line_no}")
-            if 'lines' in fix:
-                if debug: print("Fix applied:")
-                for line in fix['lines']:
-                    if debug: print(f"  + {line}")
-        if debug: print("Retrying...\n")
+            if debug: print("❌ No fix could be generated for this error")
+            return False, None
+            
+        if debug: print("🔄 Retrying...\n")
     
-    if iteration >= max_iterations:
-        if debug: print(f"⚠️  Maximum iterations ({max_iterations}) reached. Manual intervention may be required.")
-"""
+    # If we reach here, we exceeded max iterations
+    if debug: 
+        print(f"⚠️  Maximum iterations ({max_iterations}) reached.")
+        print("🔧 Manual intervention may be required.")
+        print(f"📊 Partial mappings created: {len(mapper.mappings)}")
+    
+    return False, mapper.mappings  # Return partial mappings even on failure
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""Aggiustare: se si trova un raise, sostituire l'intera riga cin un pass"""
+
+import time
 
 if __name__ == "__main__":
     file_path = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/generated_executables/executable_initializer.py")
-    auto_fix(Path(file_path))
+    success, mappings = auto_fix_with_mapping(Path(file_path), debug=True)
+
+    print("\nLine Mappings:")
+    for mapping in mappings:
+        print(mapping,end='\t')
+        print(" -> ", end="\t")
+        print(mappings[mapping])
+
+
+
+"""
+My python project is about fixing another python file that has a main in order to prevent execution errors. This works fine. What I need to do, however, is to keep a map of the lines of the main before and after the fixes.
+
+At the end of the auto fix function I need to have teh mapping of every line of the main before the fixes to the lines after the fix.
+
+I should have everything, so I will not send you the whole functions, since they are a lot.
+
+Inside the auto_fix function I have all the logic I need. The only problem is that I have a subfunction called make_fix, which says what is the fix to be done. Particular attention has the replace action of the make fix. The replace is special because it could even replace more lines. That's why I need a raplace_range, that tells how man
+
+"""

@@ -73,9 +73,12 @@ class FunctionExecutionGenerator:
         # Find all functions with QuantumCircuits
         functions_with_circuits = self.find_all_functions_with_circuits(content, file_path)
         
-        # Generate executable code for each function
+        # Filter out functions with empty bodies (like @property getters)
+        functions_with_body = self._filter_functions_with_body(content, functions_with_circuits)
+        
+        # Generate executable code for each function with a body
         executables = {}
-        for func_name in functions_with_circuits:
+        for func_name in functions_with_body:
             executable_code = self.generate_executable_from_code(content, func_name, file_path)
             executables[func_name] = executable_code
             
@@ -90,7 +93,194 @@ class FunctionExecutionGenerator:
                 #print(f"Generated executable for function '{func_name}': {output_file}")
         
         return executables
-    
+
+
+    def _filter_functions_with_body(self, content: str, function_names: List[str]) -> List[str]:
+        """
+        Filter function names to only include those that have actual implementation (non-empty body).
+        
+        Args:
+            content: The source code content
+            function_names: List of function names to filter
+            
+        Returns:
+            List of function names that have non-empty bodies
+        """
+        import ast
+        
+        try:
+            tree = ast.parse(content)
+            functions_with_body = []
+            
+            for func_name in function_names:
+                if self._function_has_body(tree, func_name):
+                    functions_with_body.append(func_name)
+            
+            return functions_with_body
+        
+        except Exception as e:
+            print(f"Error filtering functions with body: {e}")
+            # If parsing fails, return all functions (fallback)
+            return function_names
+
+
+    def _function_has_body(self, ast_tree: ast.AST, function_name: str) -> bool:
+        """
+        Check if a function has a non-empty body (actual implementation).
+        
+        Args:
+            ast_tree: AST tree of the source code
+            function_name: Name of the function to check
+            
+        Returns:
+            True if function has meaningful body, False if empty/minimal
+        """
+        for node in ast.walk(ast_tree):
+            if isinstance(node, ast.FunctionDef) and node.name == function_name:
+                # Check if the function body has meaningful content
+                meaningful_statements = 0
+                
+                for stmt in node.body:
+                    # Skip docstrings (first statement if it's a string constant)
+                    if (isinstance(stmt, ast.Expr)):
+                        # Handle both old ast.Str and new ast.Constant for strings
+                        if (isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str)) or \
+                        (hasattr(ast, 'Str') and isinstance(stmt.value, ast.Str)):
+                            # Only skip if it's the first statement (docstring)
+                            if stmt == node.body[0]:
+                                continue
+                    
+                    # Skip simple pass statements
+                    if isinstance(stmt, ast.Pass):
+                        continue
+                    
+                    # Skip simple return None or return statements without value
+                    if isinstance(stmt, ast.Return):
+                        if stmt.value is None:
+                            continue
+                        # Check for return None (constant)
+                        if (isinstance(stmt.value, ast.Constant) and stmt.value.value is None):
+                            continue
+                        # Check for return None (name)
+                        if (isinstance(stmt.value, ast.Name) and stmt.value.id == 'None'):
+                            continue
+                    
+                    # Skip simple raise NotImplementedError (but be more flexible)
+                    if isinstance(stmt, ast.Raise):
+                        if stmt.exc is None:  # bare raise
+                            continue
+                        if (isinstance(stmt.exc, ast.Call) and
+                            isinstance(stmt.exc.func, ast.Name) and
+                            stmt.exc.func.id in ['NotImplementedError', 'NotImplemented']):
+                            continue
+                        if (isinstance(stmt.exc, ast.Name) and
+                            stmt.exc.id in ['NotImplementedError', 'NotImplemented']):
+                            continue
+                    
+                    # If we get here, it's a meaningful statement
+                    meaningful_statements += 1
+                
+                # Function has body if it has at least one meaningful statement
+                return meaningful_statements > 0
+        
+        # Function not found, assume it has body (fallback)
+        return True
+
+
+    # Alternative simpler version using string analysis (if AST approach doesn't work well)
+    def _filter_functions_with_body_simple(self, content: str, function_names: List[str]) -> List[str]:
+        """
+        Simpler version that uses string analysis to detect empty function bodies.
+        This version is more robust for complex functions with long docstrings.
+        
+        Args:
+            content: The source code content
+            function_names: List of function names to filter
+            
+        Returns:
+            List of function names that appear to have non-empty bodies
+        """
+        functions_with_body = []
+        lines = content.split('\n')
+        
+        for func_name in function_names:
+            # Find the function definition line
+            func_start_line = None
+            for i, line in enumerate(lines):
+                stripped = line.strip()
+                if (stripped.startswith(f"def {func_name}(") or 
+                    f"def {func_name}(" in line) and 'def ' in line:
+                    func_start_line = i
+                    break
+            
+            if func_start_line is not None:
+                # Find the end of the function signature (look for the colon)
+                signature_end_line = func_start_line
+                for i in range(func_start_line, len(lines)):
+                    if ':' in lines[i] and not lines[i].strip().startswith('#'):
+                        signature_end_line = i
+                        break
+                
+                # Check the lines after the function signature
+                has_meaningful_body = False
+                func_indent = len(lines[func_start_line]) - len(lines[func_start_line].lstrip())
+                in_docstring = False
+                docstring_delimiter = None
+                
+                for i in range(signature_end_line + 1, len(lines)):
+                    line = lines[i]
+                    stripped_line = line.strip()
+                    
+                    # If we've gone back to the same or lower indentation level, we've left the function
+                    if stripped_line and len(line) - len(line.lstrip()) <= func_indent:
+                        break
+                    
+                    # Skip empty lines and comments
+                    if not stripped_line or stripped_line.startswith('#'):
+                        continue
+                    
+                    # Handle docstrings (multiline)
+                    if not in_docstring:
+                        if (stripped_line.startswith('"""') or stripped_line.startswith("'''") or
+                            stripped_line.startswith('r"""') or stripped_line.startswith("r'''")):
+                            delimiter = '"""' if '"""' in stripped_line else "'''"
+                            # Check if it's a single-line docstring
+                            if stripped_line.count(delimiter) >= 2:
+                                # Single line docstring, skip this line
+                                continue
+                            else:
+                                # Start of multiline docstring
+                                in_docstring = True
+                                docstring_delimiter = delimiter
+                                continue
+                    else:
+                        # We're inside a docstring, look for the end
+                        if docstring_delimiter in stripped_line:
+                            in_docstring = False
+                            docstring_delimiter = None
+                        continue
+                    
+                    # Skip common empty function patterns
+                    if (stripped_line == 'pass' or 
+                        stripped_line == 'return' or 
+                        stripped_line == 'return None' or
+                        stripped_line.startswith('raise NotImplementedError') or
+                        stripped_line == 'raise NotImplementedError()'):
+                        continue
+                    
+                    # If we get here, it's likely a meaningful statement
+                    has_meaningful_body = True
+                    break
+                
+                if has_meaningful_body:
+                    functions_with_body.append(func_name)
+            else:
+                # Function not found, include it anyway (fallback)
+                functions_with_body.append(func_name)
+        
+        return functions_with_body
+
+
     def find_all_functions_with_circuits(self, code: str, source_name: str = "<string>") -> List[str]:
         """
         Find all functions that contain QuantumCircuits (either as parameters or created in body).
@@ -102,6 +292,7 @@ class FunctionExecutionGenerator:
         Returns:
             List of function names that contain QuantumCircuits
         """
+
         try:
             tree = ast.parse(code)
         except SyntaxError as e:
@@ -284,8 +475,8 @@ except ImportError:
                 return node
         return None
     
+    """
     def _analyze_function(self, func_node: ast.FunctionDef):
-        """Analyze a function for QuantumCircuit instances."""
         func_name = func_node.name
         
         # Check function parameters for QuantumCircuit types
@@ -309,7 +500,189 @@ except ImportError:
         }
         
         self.circuits_found.extend(all_circuits)
-    
+    """
+
+
+    def _analyze_function(self, func_node: ast.FunctionDef):
+        """Analyze a function for QuantumCircuit instances."""
+        func_name = func_node.name
+        
+        # Check function parameters for QuantumCircuit types (enhanced version)
+        parameter_circuits = self._find_parameter_circuits_enhanced(func_node)
+        
+        # Check function return type for QuantumCircuit types
+        return_circuits = self._find_return_circuits(func_node)
+        
+        # Check function body for QuantumCircuit creations
+        created_circuits = self._find_created_circuits(func_node)
+        
+        # Store function info
+        all_circuits = parameter_circuits + return_circuits + created_circuits
+        func_source = self._extract_function_source(func_node)
+        
+        self.functions_with_circuits[func_name] = {
+            "function_name": func_name,
+            "line_number": func_node.lineno,
+            "circuits": all_circuits,
+            "source_code": func_source,
+            "parameters": self._extract_parameters(func_node),
+            "returns_annotation": self._get_return_annotation(func_node),
+            "body": self._extract_function_body(func_node)
+        }
+        
+        self.circuits_found.extend(all_circuits)
+
+
+    def _find_return_circuits(self, func_node: ast.FunctionDef):
+        """Find QuantumCircuit types in function return annotation."""
+        circuits = []
+        
+        if func_node.returns:
+            return_annotation = self._get_annotation_string(func_node.returns)
+            if self._contains_quantum_circuit(return_annotation):
+                circuits.append({
+                    "type": "return_type",
+                    "name": "return_value",
+                    "annotation": return_annotation,
+                    "line_number": func_node.lineno
+                })
+        
+        return circuits
+
+
+    def _find_parameter_circuits_enhanced(self, func_node: ast.FunctionDef):
+        """Find QuantumCircuit types in function parameters (enhanced version)."""
+        circuits = []
+        
+        for arg in func_node.args.args:
+            if arg.annotation:
+                param_annotation = self._get_annotation_string(arg.annotation)
+                if self._contains_quantum_circuit(param_annotation):
+                    circuits.append({
+                        "type": "parameter",
+                        "name": arg.arg,
+                        "annotation": param_annotation,
+                        "line_number": func_node.lineno
+                    })
+        
+        # Check keyword-only arguments
+        for arg in func_node.args.kwonlyargs:
+            if arg.annotation:
+                param_annotation = self._get_annotation_string(arg.annotation)
+                if self._contains_quantum_circuit(param_annotation):
+                    circuits.append({
+                        "type": "parameter",
+                        "name": arg.arg,
+                        "annotation": param_annotation,
+                        "line_number": func_node.lineno
+                    })
+        
+        # Check positional-only arguments (Python 3.8+)
+        if hasattr(func_node.args, 'posonlyargs'):
+            for arg in func_node.args.posonlyargs:
+                if arg.annotation:
+                    param_annotation = self._get_annotation_string(arg.annotation)
+                    if self._contains_quantum_circuit(param_annotation):
+                        circuits.append({
+                            "type": "parameter",
+                            "name": arg.arg,
+                            "annotation": param_annotation,
+                            "line_number": func_node.lineno
+                        })
+        
+        # Check varargs (*args)
+        if func_node.args.vararg and func_node.args.vararg.annotation:
+            param_annotation = self._get_annotation_string(func_node.args.vararg.annotation)
+            if self._contains_quantum_circuit(param_annotation):
+                circuits.append({
+                    "type": "parameter",
+                    "name": f"*{func_node.args.vararg.arg}",
+                    "annotation": param_annotation,
+                    "line_number": func_node.lineno
+                })
+        
+        # Check keyword arguments (**kwargs)
+        if func_node.args.kwarg and func_node.args.kwarg.annotation:
+            param_annotation = self._get_annotation_string(func_node.args.kwarg.annotation)
+            if self._contains_quantum_circuit(param_annotation):
+                circuits.append({
+                    "type": "parameter",
+                    "name": f"**{func_node.args.kwarg.arg}",
+                    "annotation": param_annotation,
+                    "line_number": func_node.lineno
+                })
+        
+        return circuits
+
+
+    def _get_annotation_string(self, annotation_node):
+        """Convert an AST annotation node to a string representation."""
+        if annotation_node is None:
+            return ""
+        
+        try:
+            # Handle different types of annotations
+            if isinstance(annotation_node, ast.Name):
+                return annotation_node.id
+            elif isinstance(annotation_node, ast.Attribute):
+                # Handle qualified names like qiskit.QuantumCircuit
+                parts = []
+                current = annotation_node
+                while isinstance(current, ast.Attribute):
+                    parts.append(current.attr)
+                    current = current.value
+                if isinstance(current, ast.Name):
+                    parts.append(current.id)
+                return ".".join(reversed(parts))
+            elif isinstance(annotation_node, ast.BinOp) and isinstance(annotation_node.op, ast.BitOr):
+                # Handle union types with | operator (Python 3.10+)
+                left = self._get_annotation_string(annotation_node.left)
+                right = self._get_annotation_string(annotation_node.right)
+                return f"{left} | {right}"
+            elif isinstance(annotation_node, ast.Subscript):
+                # Handle generic types like Union[A, B], List[A], etc.
+                value = self._get_annotation_string(annotation_node.value)
+                if isinstance(annotation_node.slice, ast.Tuple):
+                    # Multiple type arguments
+                    args = [self._get_annotation_string(elt) for elt in annotation_node.slice.elts]
+                    return f"{value}[{', '.join(args)}]"
+                else:
+                    # Single type argument
+                    arg = self._get_annotation_string(annotation_node.slice)
+                    return f"{value}[{arg}]"
+            elif isinstance(annotation_node, ast.Constant):
+                # Handle string annotations
+                return str(annotation_node.value)
+            elif isinstance(annotation_node, ast.Str):  # Python < 3.8 compatibility
+                return annotation_node.s
+            else:
+                # Fallback: try to convert to source code
+                import astor
+                return astor.to_source(annotation_node).strip()
+        except:
+            # If all else fails, return empty string
+            return ""
+
+
+    def _contains_quantum_circuit(self, annotation_str: str) -> bool:
+        """Check if an annotation string contains QuantumCircuit."""
+        if not annotation_str:
+            return False
+        
+        # Check for various forms of QuantumCircuit
+        circuit_patterns = [
+            'QuantumCircuit',
+            'qiskit.QuantumCircuit',
+            'qiskit.circuit.QuantumCircuit',
+        ]
+        
+        for pattern in circuit_patterns:
+            if pattern in annotation_str:
+                return True
+        
+        return False
+
+
     def _extract_parameters(self, func_node: ast.FunctionDef) -> List[ParameterInfo]:
         """Extract detailed parameter information."""
         parameters = []
@@ -1344,13 +1717,13 @@ except Exception as e:
         
         return '\n'.join(self.code_lines[start_line:end_line])
 
-
-"""# Example usage
+"""
+# Example usage
 if __name__ == "__main__":
     # python -m test.StaticCircuit  
 
     # For a file
-    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/qiskit_algorithms/eigensolvers/vqd.py")
+    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/mpqp/mpqp/core/circuit.py")
 
     generator = FunctionExecutionGenerator()
     
@@ -1363,7 +1736,7 @@ if __name__ == "__main__":
     print("Analyzing file for functions with QuantumCircuits...")
     
     # First, find all functions with circuits
-    functions_with_circuits = generator.find_all_functions_with_circuits(open(file, 'r').read(), file)
+    functions_with_circuits = generator.find_all_functions_with_circuits(open(file, 'r', encoding="utf-8").read(), file)
     print(f"Found {len(functions_with_circuits)} functions with QuantumCircuits:")
     for func_name in functions_with_circuits:
         print(f"  - {func_name}")

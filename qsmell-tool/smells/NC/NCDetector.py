@@ -18,7 +18,8 @@ class NCDetector(Detector):
 
         difference_threshold = get_detector_option("NC", "difference_threshold", fallback=1)
 
-        if total_bind_assign > 0 and total_run_execute-total_bind_assign>=difference_threshold:
+       #if total_bind_assign > 0 and total_run_execute-total_bind_assign>=difference_threshold:
+        if total_run_execute-total_bind_assign>=difference_threshold:
             nc_smell = NC(
                 run_calls=run_calls,
                 execute_calls=execute_calls,

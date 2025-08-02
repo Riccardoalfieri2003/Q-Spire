@@ -28,6 +28,8 @@ smell_classes = [CG, IdQ, IM, IQ, LC, LPQ, NC, ROC]
 
 thread_local = threading.local()
 
+suppress_print=False
+
 def suppressed_print(*args, **kwargs):
     # Check if current thread should suppress prints
     if getattr(thread_local, 'suppress_prints', False):
@@ -36,7 +38,7 @@ def suppressed_print(*args, **kwargs):
     original_print(*args, **kwargs)
 
 # Store original print function
-original_print = builtins.print
+if suppress_print: original_print = builtins.print
 
 # Global set to track files currently being processed (with lock for thread safety)
 processing_files = set()
@@ -366,7 +368,7 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
             
             # Replace print globally with our controlled version
             original_print_backup = builtins.print
-            builtins.print = suppressed_print
+            if suppress_print: builtins.print = suppressed_print
             
             # Replace exec globally with our hook
             builtins.exec = exec_hook
@@ -444,11 +446,11 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
 
 
 if __name__ == "__main__":
-    #python -m test.GeneralFileTest
+    # python -m test.GeneralFileTest
     
     # Test with the problematic file
     #file = os.path.abspath("")
-    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/generated_executables/executable__get_evaluate_energy.py")
+    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/generated_executables/executable_initializer.py")
     if os.path.exists(file):
         # You can change the max_exec_depth here (default is 3)
         result = detect_smells_from_file(file, max_exec_depth=3)

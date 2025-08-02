@@ -35,7 +35,7 @@ class RunExecuteParametersCalls:
         self.debug = debug
         
         # Read source code
-        with open(filepath, 'r') as f:
+        with open(filepath, 'r', encoding="utf-8") as f:
             source_code = f.read()
         
         if debug:

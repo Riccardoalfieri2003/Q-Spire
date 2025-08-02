@@ -38,7 +38,7 @@ def clear_folder(folder_path):
 if __name__ == "__main__":
     # python -m test.StaticFolder
 
-    folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/qiskit_algorithms")
+    folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/mpqp")
     output_saving_folder=os.path.abspath("C:/Users/rical/OneDrive/Desktop/SmellResults")
 
 
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     for file in pyFiles:
         #print(f"Analyzing {file}")
         try: 
-            functions_with_circuits = generator.find_all_functions_with_circuits(open(file, 'r').read(), file)
+            functions_with_circuits = generator.find_all_functions_with_circuits(open(file, 'r', encoding="utf-8").read(), file)
 
             output_directory = "generated_executables"
             executables = generator.analyze_and_generate_all_executables(file, output_directory)
