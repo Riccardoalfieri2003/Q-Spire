@@ -11,10 +11,10 @@ class QuantumSmell:
     def set_row(self, row: str):
         self.row = row
 
-    def set_column(self, column_start: str):
+    def set_column_start(self, column_start: str):
         self.column_start = column_start
 
-    def set_column(self, column_end: str):
+    def set_column_end(self, column_end: str):
         self.column_end = column_end
 
     def set_explanation(self, explanation: str):

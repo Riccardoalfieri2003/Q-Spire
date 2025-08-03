@@ -4,8 +4,8 @@ import shutil
 import threading
 from test.StaticCircuit import FunctionExecutionGenerator
 import os
-from test.GeneralFileTest import detect_smells_from_file
-from test.GeneralFolderTest import save_output
+#from test.StaticFileDetection import detect_smells_from_file
+#from test.GeneralFolderTest import save_output
 
 
 
@@ -148,62 +148,91 @@ def _find_main_block_start(lines: list) -> Optional[int]:
     return None
 
 
-def _get_comment_lines(source_code: str) -> set:
+def _get_comment_lines(source_code: str) -> set[int]:
     """
-    Get all line numbers that contain comments or docstrings using tokenization.
-    This properly handles multiline comments, docstrings, and inline comments.
+    Get all line numbers that contain comments or docstrings using regex patterns.
+    This approach is more robust and doesn't rely on Python tokenization.
+    Works even with malformed/incomplete Python code.
     """
-    import tokenize
-    import io
-    
     comment_lines = set()
+    lines = source_code.split('\n')
     
-    try:
-        # Use tokenize to properly identify all comments and strings
-        tokens = tokenize.generate_tokens(io.StringIO(source_code).readline)
-        
-        for token in tokens:
-            if token.type == tokenize.COMMENT:
-                # Add all lines covered by this comment
-                start_line, end_line = token.start[0], token.end[0]
-                for line_num in range(start_line, end_line + 1):
-                    comment_lines.add(line_num)
-            
-            elif token.type == tokenize.STRING:
-                # Check if this string is likely a docstring
-                if _is_likely_docstring(token, source_code):
-                    # Add all lines covered by this docstring
-                    start_line, end_line = token.start[0], token.end[0]
-                    for line_num in range(start_line, end_line + 1):
-                        comment_lines.add(line_num)
+    in_triple_quote = False
+    triple_quote_type = None
     
-    except tokenize.TokenError:
-        # Fallback to simple line-by-line analysis if tokenization fails
-        lines = source_code.split('\n')
-        in_multiline_string = False
-        multiline_delimiter = None
+    for line_num, line in enumerate(lines, 1):
+        original_line = line
+        line = line.strip()
         
-        for i, line in enumerate(lines, 1):
-            stripped = line.strip()
+        # Handle continuation of triple-quoted strings
+        if in_triple_quote:
+            comment_lines.add(line_num)
+            # Check if triple quote ends on this line
+            if triple_quote_type in original_line:
+                # Count occurrences to handle edge cases
+                count = original_line.count(triple_quote_type)
+                if count % 2 == 1:  # Odd number means it closes
+                    in_triple_quote = False
+                    triple_quote_type = None
+            continue
+        
+        # Skip empty lines
+        if not line:
+            continue
             
-            # Handle multiline strings
-            if in_multiline_string:
-                comment_lines.add(i)
-                if multiline_delimiter in line:
-                    in_multiline_string = False
-                    multiline_delimiter = None
-            elif stripped.startswith('"""') or stripped.startswith("'''"):
-                comment_lines.add(i)
-                delimiter = '"""' if stripped.startswith('"""') else "'''"
+        # Check for single-line comments (lines starting with #)
+        if line.startswith('#'):
+            comment_lines.add(line_num)
+            continue
+        
+        # Check for triple-quoted strings (docstrings)
+        triple_quote_patterns = [
+            (r'"""', '"""'),
+            (r"'''", "'''"),
+            (r'r"""', '"""'),
+            (r"r'''", "'''"),
+            (r'u"""', '"""'),
+            (r"u'''", "'''"),
+        ]
+        
+        found_triple_quote = False
+        for pattern, quote_type in triple_quote_patterns:
+            if pattern in original_line.lower():
+                comment_lines.add(line_num)
+                found_triple_quote = True
+                
                 # Check if it's a single-line docstring
-                if stripped.count(delimiter) < 2:
-                    in_multiline_string = True
-                    multiline_delimiter = delimiter
-            elif stripped.startswith('#'):
-                comment_lines.add(i)
+                first_occurrence = original_line.lower().find(pattern)
+                remaining_line = original_line[first_occurrence + len(pattern):]
+                
+                if quote_type in remaining_line:
+                    # Single-line docstring, already handled
+                    pass
+                else:
+                    # Multi-line docstring starts
+                    in_triple_quote = True
+                    triple_quote_type = quote_type
+                break
+        
+        if found_triple_quote:
+            continue
+            
+        # Check for inline comments (# somewhere in the line)
+        # Simple heuristic: if # appears and it's likely not in a string
+        if '#' in original_line:
+            # Very basic check: count quotes before the #
+            hash_index = original_line.find('#')
+            before_hash = original_line[:hash_index]
+            
+            # Count single and double quotes
+            single_quotes = before_hash.count("'")
+            double_quotes = before_hash.count('"')
+            
+            # If even number of quotes, # is likely a comment
+            if single_quotes % 2 == 0 and double_quotes % 2 == 0:
+                comment_lines.add(line_num)
     
     return comment_lines
-
 
 def _is_likely_docstring(token, source_code: str) -> bool:
     """
@@ -413,9 +442,114 @@ import difflib
 from typing import List, Dict, Tuple, Optional, Any
 import re
 
+
+
+def _map_function_lines_regex(original_func: Dict, main_block: Dict, similarity_threshold: float = 0.6) -> Dict[str, Any]:
+    """
+    Map lines from main block to original function using similarity matching.
+    For each line in the main block, find the best matching line in the original function.
+    """
+    from difflib import SequenceMatcher
+    import re
+    
+    def normalize_line(line: str) -> str:
+        """Normalize a line for comparison by removing extra whitespace and comments."""
+        # Remove comments
+        line = re.sub(r'#.*$', '', line)
+        # Remove extra whitespace
+        line = ' '.join(line.split())
+        # Remove common Python keywords that might differ
+        line = re.sub(r'\bself\.\b', '', line)
+        # Remove common variations
+        line = re.sub(r'\bmain\(\)', '', line)  # Remove main() calls
+        return line.strip().lower()
+    
+    def calculate_similarity(line1: str, line2: str) -> float:
+        """Calculate similarity between two lines."""
+        norm1 = normalize_line(line1)
+        norm2 = normalize_line(line2)
+        
+        if not norm1 or not norm2:
+            return 0.0
+            
+        return SequenceMatcher(None, norm1, norm2).ratio()
+    
+    original_lines = original_func['lines']
+    main_lines = main_block['lines']
+    
+    line_mappings = []
+    
+    # For each line in the MAIN BLOCK, find the best match in the ORIGINAL FUNCTION
+    for main_line in main_lines:
+        main_content = main_line['stripped_content']
+        
+        # Skip empty lines, comments, and obvious non-code lines
+        if (not main_content or 
+            main_content.startswith('#') or 
+            main_content.startswith('try:') or
+            main_content.startswith('except') or
+            main_content.startswith('"""') or
+            main_content.startswith("'''")):
+            line_mappings.append({
+                "generated_line": main_line['line_number'],
+                "generated_content": main_line['content'],
+                "original_line": None,
+                "original_content": None,
+                "similarity": 0.0
+            })
+            continue
+        
+        best_match = None
+        best_similarity = 0.0
+        
+        # Find the best matching line in original function
+        for orig_line in original_lines:
+            orig_content = orig_line['stripped_content']
+            
+            # Skip empty lines, comments, and function definition
+            if (not orig_content or 
+                orig_content.startswith('#') or 
+                orig_content.startswith('def ') or
+                orig_content.startswith('"""') or
+                orig_content.startswith("'''")):
+                continue
+                
+            similarity = calculate_similarity(main_content, orig_content)
+            
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_match = orig_line
+        
+        # Only include the mapping if similarity meets threshold
+        if best_match and best_similarity >= similarity_threshold:
+            line_mappings.append({
+                "generated_line": main_line['line_number'],
+                "generated_content": main_line['content'],
+                "original_line": best_match['line_number'],
+                "original_content": best_match['content'],
+                "similarity": best_similarity
+            })
+        else:
+            line_mappings.append({
+                "generated_line": main_line['line_number'],
+                "generated_content": main_line['content'],
+                "original_line": None,
+                "original_content": None,
+                "similarity": best_similarity if best_match else 0.0
+            })
+    
+    return {
+        "line_mappings": line_mappings,
+        "total_main_lines": len(main_lines),
+        "total_mapped_lines": sum(1 for m in line_mappings if m["original_line"] is not None)
+    }
+
+
+# Updated main mapping function
 def map_lines_of_code(original_file: str, original_function: str, generated_file: str, similarity_threshold: float = 0.6) -> Dict[str, Any]:
     """
-    Map lines of code from an original function to the generated main function.
+    Map lines of code from main block to original function.
+    For each line in the main block, find the best matching line in the original function.
     
     Args:
         original_file: Path to the original Python file
@@ -424,30 +558,29 @@ def map_lines_of_code(original_file: str, original_function: str, generated_file
         similarity_threshold: Minimum similarity ratio (0.0 to 1.0) for line matching
         
     Returns:
-        Dictionary containing the best mapping found with metadata
+        Dictionary containing the mapping from main block lines to original function lines
     """
     try:
         # Read both files
-        with open(original_file, 'r', encoding='utf-8') as f:
+        with open(original_file, 'r', encoding='utf-8', errors='ignore') as f:
             original_code = f.read()
         
-        with open(generated_file, 'r', encoding='utf-8') as f:
+        with open(generated_file, 'r', encoding='utf-8', errors='ignore') as f:
             generated_code = f.read()
         
-        # Parse AST for both files
-        original_ast = ast.parse(original_code)
-        generated_ast = ast.parse(generated_code)
-        
         # Find all functions with the target name in original file
-        original_functions = _find_functions_by_name(original_ast, original_function, original_code)
+        all_functions = _find_functions_by_name_regex(original_code, original_function)
+        
+        # Filter to only keep functions with actual body
+        original_functions = [func for func in all_functions if _has_function_body(func)]
         
         # Find main block in generated file
-        main_block = _find_main_block(generated_ast, generated_code)
+        main_block = _find_main_block_regex(generated_code)
         
         if not original_functions:
             return {
                 "success": False,
-                "error": f"Function '{original_function}' not found in {original_file}",
+                "error": f"Function '{original_function}' not found in {original_file} (found {len(all_functions)} function definitions but none with actual body)",
                 "mapping": None
             }
         
@@ -458,24 +591,92 @@ def map_lines_of_code(original_file: str, original_function: str, generated_file
                 "mapping": None
             }
         
-        # Try mapping each original function and find the best one
+        # Try mapping with each original function and find the best one
         best_mapping = None
         best_score = -1
         
         for i, orig_func in enumerate(original_functions):
-            mapping = _map_function_lines(
+
+            #if orig_func['name']=="construct_circuit":
+
+            """
+            print(f"Found {len(original_functions)} functions named '{original_function}' with actual body")
+            print(f"Main block starts at line {main_block['start_line']} with {len(main_block['lines'])} lines")
+
+            print("FUNCTION")
+            print(orig_func['lines'])
+
+            print("MAIN")
+            print(main_block)
+
+            print(f"\n=== Trying function {i+1}/{len(original_functions)}: {orig_func.get('name', original_function)} ===")
+            
+            # Debug output for the construct_circuit function
+            if orig_func.get('name') == original_function or original_function in str(orig_func.get('lines', [{}])[0].get('content', '')):
+                print("FUNCTION DETAILS:")
+                print(f"  Start line: {orig_func.get('start_line', 'unknown')}")
+                print(f"  Total lines: {len(orig_func['lines'])}")
+                print("  First 10 lines:")
+                for j, line in enumerate(orig_func['lines'][:10]):
+                    print(f"    {line['line_number']}: '{line['stripped_content']}'")
+                
+                print("\nMAIN BLOCK DETAILS:")
+                print(f"  Start line: {main_block['start_line']}")
+                print(f"  Total lines: {len(main_block['lines'])}")
+                print("  First 10 lines:")
+                for j, line in enumerate(main_block['lines'][:10]):
+                    print(f"    {line['line_number']}: '{line['stripped_content']}'")
+            """
+            
+            mapping = _map_function_lines_regex(
                 orig_func, 
                 main_block, 
                 similarity_threshold
             )
             
-            # Calculate score (number of non-None mappings)
-            score = sum(1 for m in mapping["line_mappings"] if m["generated_line"] is not None)
+            #print(f"Mapping result: {mapping['total_mapped_lines']}/{mapping['total_main_lines']} executable lines mapped")
+            #print(f"Original function had {mapping['total_executable_original_lines']} executable lines")
+            
+            # Calculate score (number of successful mappings)
+            score = mapping['total_mapped_lines']
             
             if score > best_score:
                 best_score = score
                 best_mapping = mapping
                 best_mapping["original_function_index"] = i
+            
+            """
+            # Print some example mappings for debugging
+            print("Sample mappings:")
+            successful_mappings = [m for m in mapping["line_mappings"] if m["original_line"] is not None]
+            failed_mappings = [m for m in mapping["line_mappings"] if m["original_line"] is None]
+            
+            # Show successful mappings
+            
+            for j, line_map in enumerate(successful_mappings[:3]):
+                main_content = line_map['generated_content'].strip()
+                orig_content = line_map['original_content'].strip()
+                print(f"  ✓ Main {line_map['generated_line']}: '{main_content[:50]}{'...' if len(main_content) > 50 else ''}' -> "
+                    f"Original {line_map['original_line']}: '{orig_content[:50]}{'...' if len(orig_content) > 50 else ''}' "
+                    f"(similarity: {line_map['similarity']:.3f})")
+            
+            # Show failed mappings
+            for j, line_map in enumerate(failed_mappings[:2]):
+                main_content = line_map['generated_content'].strip()
+                print(f"  ✗ Main {line_map['generated_line']}: '{main_content[:50]}{'...' if len(main_content) > 50 else ''}' -> "
+                    f"No match ({line_map.get('reason', 'unknown reason')})")"""
+        
+        if not best_mapping:
+            return {
+                "success": False,
+                "error": "No successful mappings found between any original function and main block",
+                "mapping": None
+            }
+        
+        """print(f"\n=== BEST MAPPING SELECTED ===")
+        print(f"Function index: {best_mapping['original_function_index']}")
+        print(f"Total mapped lines: {best_mapping['total_mapped_lines']}")
+        print(f"Success rate: {best_mapping['total_mapped_lines']}/{best_mapping['total_main_lines']} = {(best_mapping['total_mapped_lines']/max(1, best_mapping['total_main_lines']))*100:.1f}%")"""
         
         return {
             "success": True,
@@ -485,15 +686,495 @@ def map_lines_of_code(original_file: str, original_function: str, generated_file
         }
         
     except Exception as e:
+        import traceback
         return {
             "success": False,
             "error": f"Error processing files: {str(e)}",
+            "traceback": traceback.format_exc(),
             "mapping": None
         }
 
 
+def _map_function_lines_regex(original_func: Dict, main_block: Dict, similarity_threshold: float = 0.6) -> Dict[str, Any]:
+    """
+    Map lines from main block to original function using similarity matching.
+    For each line in the main block, find the best matching line in the original function.
+    IMPORTANTLY: Skip function definition lines and focus on actual code content.
+    """
+    from difflib import SequenceMatcher
+    import re
+    
+    def normalize_line(line: str) -> str:
+        """Normalize a line for comparison by removing extra whitespace and comments."""
+        # Remove comments
+        line = re.sub(r'#.*$', '', line)
+        # Remove extra whitespace
+        line = ' '.join(line.split())
+        # Remove common Python keywords that might differ
+        line = re.sub(r'\bself\.\b', '', line)
+        # Remove common variations
+        line = re.sub(r'\bmain\(\)', '', line)
+        return line.strip().lower()
+    
+    def is_function_header_line(content: str) -> bool:
+        """Check if a line is part of the function definition (header)."""
+        content = content.strip()
+        return (content.startswith('def ') or 
+                (content.startswith(')') and content.endswith(':')) or
+                ('-> ' in content and content.endswith(':')) or
+                (content.count('(') > 0 and content.count(')') == 0 and not '=' in content))  # Parameter lines
+    
+    def is_executable_code(content: str) -> bool:
+        """Check if a line contains actual executable code."""
+        content = content.strip()
+        if not content:
+            return False
+        
+        # Skip obvious non-executable lines
+        skip_patterns = [
+            content.startswith('#'),           # Comments
+            content.startswith('"""'),         # Docstrings
+            content.startswith("'''"),         # Docstrings
+            content.startswith('try:'),        # Try blocks (usually error handling in main)
+            content.startswith('except'),      # Exception handling
+            content == 'pass',                 # Pass statements
+            content == '...',                  # Ellipsis
+            is_function_header_line(content)   # Function headers
+        ]
+        
+        return not any(skip_patterns)
+    
+    def calculate_similarity(line1: str, line2: str) -> float:
+        """Calculate similarity between two lines."""
+        norm1 = normalize_line(line1)
+        norm2 = normalize_line(line2)
+        
+        if not norm1 or not norm2:
+            return 0.0
+            
+        return SequenceMatcher(None, norm1, norm2).ratio()
+    
+    original_lines = original_func['lines']
+    main_lines = main_block['lines']
+    
+    # Filter original lines to only include executable code
+    executable_original_lines = [
+        line for line in original_lines 
+        if is_executable_code(line['stripped_content'])
+    ]
+    
+    # Filter main lines to only include executable code
+    executable_main_lines = [
+        line for line in main_lines
+        if is_executable_code(line['stripped_content'])
+    ]
+    
+    #print(f"  Original function: {len(original_lines)} total lines, {len(executable_original_lines)} executable")
+    #print(f"  Main block: {len(main_lines)} total lines, {len(executable_main_lines)} executable")
+    
+    line_mappings = []
+    
+    # For each line in the MAIN BLOCK, find the best match in the ORIGINAL FUNCTION
+    for main_line in main_lines:
+        main_content = main_line['stripped_content']
+        
+        # Skip non-executable lines in main block
+        if not is_executable_code(main_content):
+            line_mappings.append({
+                "generated_line": main_line['line_number'],
+                "generated_content": main_line['content'],
+                "original_line": None,
+                "original_content": None,
+                "similarity": 0.0,
+                "reason": "Non-executable main line"
+            })
+            continue
+        
+        best_match = None
+        best_similarity = 0.0
+        
+        # Find the best matching line in executable original lines
+        for orig_line in executable_original_lines:
+            similarity = calculate_similarity(main_content, orig_line['stripped_content'])
+            
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_match = orig_line
+        
+        # Only include the mapping if similarity meets threshold
+        if best_match and best_similarity >= similarity_threshold:
+            line_mappings.append({
+                "generated_line": main_line['line_number'],
+                "generated_content": main_line['content'],
+                "original_line": best_match['line_number'],
+                "original_content": best_match['content'],
+                "similarity": best_similarity,
+                "reason": "Successful match"
+            })
+        else:
+            line_mappings.append({
+                "generated_line": main_line['line_number'],
+                "generated_content": main_line['content'],
+                "original_line": None,
+                "original_content": None,
+                "similarity": best_similarity if best_match else 0.0,
+                "reason": f"Below threshold ({best_similarity:.3f} < {similarity_threshold})" if best_match else "No similar line found"
+            })
+    
+    return {
+        "line_mappings": line_mappings,
+        "total_main_lines": len(executable_main_lines),
+        "total_mapped_lines": sum(1 for m in line_mappings if m["original_line"] is not None),
+        "total_executable_original_lines": len(executable_original_lines)
+    }
+
+def _has_function_body(function_dict: Dict) -> bool:
+    """
+    Check if a function has actual body content (not just annotations or empty).
+    
+    Args:
+        function_dict: Dictionary containing function information with 'lines' key
+        
+    Returns:
+        True if function has meaningful body content, False otherwise
+    """
+    if not function_dict.get("lines"):
+        return False
+    
+    # Check all lines in the function for meaningful content
+    for line_info in function_dict["lines"]:
+        stripped_content = line_info["stripped_content"]
+        original_content = line_info["content"]
+        
+        # Skip empty lines
+        if not stripped_content:
+            continue
+            
+        # Skip function definition line (def function_name(...)
+        if stripped_content.startswith("def "):
+            continue
+            
+        # Skip function parameter lines (lines that are part of function signature)
+        if (stripped_content.endswith(",") or 
+            stripped_content.endswith("(") or 
+            (":" in stripped_content and "->" not in stripped_content and not stripped_content.endswith(":"))):
+            # This might be a parameter line, but let's be more specific
+            # Skip if it looks like a parameter (has type annotation pattern)
+            if (re.match(r'^\s*\w+\s*:', stripped_content) or  # param: Type
+                re.match(r'^\s*\w+\s*:\s*\w+.*,\s*$', stripped_content) or  # param: Type,
+                stripped_content in ["self,", "cls,"] or  # self or cls parameters
+                stripped_content.startswith("self,") or
+                stripped_content.startswith("cls,") or
+                # Match parameter patterns like "device: ATOSDevice," or "translation_warning: bool = True,"
+                re.match(r'^\s*\w+\s*:\s*\w+.*[,)]?\s*$', stripped_content)):
+                continue
+        
+        # Skip lines that are just function signature continuation
+        if (stripped_content.endswith("):") or 
+            stripped_content.endswith(") ->") or
+            "-> " in stripped_content):
+            continue
+            
+        # Skip common stub patterns
+        if (stripped_content == "pass" or
+            stripped_content == "..." or
+            stripped_content.endswith(": ...") or  # function signature ending with : ...
+            stripped_content.startswith("pass  #") or
+            stripped_content.startswith("...  #") or
+            stripped_content == "return" or
+            stripped_content == "return None" or
+            # Skip raise NotImplementedError (common in stubs)
+            "NotImplementedError" in stripped_content or
+            "raise NotImplementedError" in stripped_content.lower() or
+            # Skip just docstrings at function level
+            (stripped_content.startswith('"""') and stripped_content.endswith('"""')) or
+            (stripped_content.startswith("'''") and stripped_content.endswith("'''"))):
+            continue
+        
+        # If we reach here, we found a meaningful line
+        return True
+    
+    # No meaningful lines found
+    return False
+
+
+def _find_functions_by_name_regex(source_code: str, function_name: str) -> List[Dict]:
+    """
+    Find all functions with the given name using regex patterns.
+    Works even with malformed Python code.
+    """
+    functions = []
+    lines = source_code.split('\n')
+    
+    # Get all comment and docstring lines to filter them out
+    comment_lines = _get_all_comment_and_docstring_lines(source_code)
+    
+    # Pattern to match function definition
+    func_pattern = rf'^\s*def\s+{re.escape(function_name)}\s*\('
+    
+    for line_num, line in enumerate(lines, 1):
+        if re.match(func_pattern, line):
+            # Found function definition
+            start_line = line_num
+            
+            # Find function end by looking for next function/class or end of indentation
+            end_line = _find_function_end_regex(lines, line_num - 1)  # Convert to 0-based
+            
+            # Extract non-comment, non-empty lines from the function
+            function_lines = []
+            for func_line_num in range(start_line, min(end_line + 1, len(lines) + 1)):
+                if func_line_num <= len(lines):
+                    line_content = lines[func_line_num - 1]  # Convert to 0-based for lines list
+                    
+                    # Skip empty lines and all types of comments/docstrings
+                    if (line_content.strip() and 
+                        func_line_num not in comment_lines):
+                        function_lines.append({
+                            "line_number": func_line_num,
+                            "content": line_content,
+                            "stripped_content": line_content.strip(),
+                            "start_col": len(line_content) - len(line_content.lstrip()),
+                            "end_col": len(line_content)
+                        })
+            
+            functions.append({
+                "name": function_name,
+                "start_line": start_line,
+                "end_line": end_line,
+                "lines": function_lines
+            })
+    
+    return functions
+
+
+def _find_function_end_regex(lines: List[str], start_index: int) -> int:
+    """
+    Find the end line of a function starting at start_index.
+    Uses indentation-based detection and handles multi-line signatures.
+    """
+    if start_index >= len(lines):
+        return start_index
+    
+    # Get the base indentation of the function definition
+    def_line = lines[start_index]
+    base_indent = len(def_line) - len(def_line.lstrip())
+    
+    # First, find where the function signature actually ends (look for the colon)
+    signature_end = start_index
+    found_colon = False
+    
+    for i in range(start_index, len(lines)):
+        line = lines[i]
+        stripped = line.strip()
+        
+        # Look for the colon that ends the function signature
+        if ':' in stripped and not found_colon:
+            # Make sure it's not inside quotes or comments
+            colon_pos = stripped.find(':')
+            before_colon = stripped[:colon_pos]
+            
+            # Simple check: if it ends with : and doesn't look like a type annotation
+            if (stripped.endswith(':') or 
+                stripped.endswith(': ...') or
+                '-> ' in before_colon):  # Return type annotation before colon
+                signature_end = i
+                found_colon = True
+                break
+    
+    # Now look for the actual end of the function body
+    for i in range(signature_end + 1, len(lines)):
+        line = lines[i]
+        
+        # Skip empty lines
+        if not line.strip():
+            continue
+        
+        current_indent = len(line) - len(line.lstrip())
+        
+        # If we find a line with same or less indentation than the function def
+        if current_indent <= base_indent:
+            stripped = line.strip()
+            # Check if it's a new function, class, or other top-level construct
+            if (stripped.startswith('def ') or 
+                stripped.startswith('class ') or
+                stripped.startswith('@') or  # decorator
+                (not stripped.startswith('#') and stripped)):  # Not a comment and not empty
+                return i  # Return 1-based line number
+    
+    # If we reach here, function goes to end of file
+    return len(lines)
+
+
+
+def _find_main_block_regex(source_code: str) -> Optional[Dict]:
+    """
+    Find the main block using regex patterns.
+    Takes all lines from the if __name__ == "__main__": line to the end of the file.
+    """
+    lines = source_code.split('\n')
+    comment_lines = _get_all_comment_and_docstring_lines(source_code)
+    
+    # Pattern to match if __name__ == "__main__":
+    main_pattern = r'^\s*if\s+__name__\s*==\s*["\']__main__["\']?\s*:\s*$'
+    
+    for line_num, line in enumerate(lines, 1):
+        if re.match(main_pattern, line):
+            # Found main block start
+            start_line = line_num + 1  # Start from the line after the if statement
+            
+            # Extract all non-comment lines from the main block to end of file
+            main_lines = []
+            
+            for main_line_num in range(start_line, len(lines) + 1):
+                if main_line_num <= len(lines):
+                    line_content = lines[main_line_num - 1]  # Convert to 0-based
+                    
+                    # Skip empty lines
+                    if not line_content.strip():
+                        continue
+                    
+                    # Skip comments and docstrings
+                    if main_line_num not in comment_lines:
+                        main_lines.append({
+                            "line_number": main_line_num,
+                            "content": line_content,
+                            "stripped_content": line_content.strip(),
+                            "start_col": len(line_content) - len(line_content.lstrip()),
+                            "end_col": len(line_content)
+                        })
+            
+            return {
+                "start_line": start_line,
+                "lines": main_lines
+            }
+    
+    return None
+
+"""
+def _map_function_lines_regex(original_function: Dict, main_block: Dict, similarity_threshold: float) -> Dict:
+
+    import difflib
+    
+    mappings = []
+    
+    for orig_line in original_function["lines"]:
+        orig_content = orig_line["stripped_content"]
+        
+        best_match = None
+        best_similarity = 0.0
+        
+        # Compare with each line in main block
+        for main_line in main_block["lines"]:
+            main_content = main_line["stripped_content"]
+            
+            # Calculate similarity
+            similarity = difflib.SequenceMatcher(None, orig_content, main_content).ratio()
+            
+            if similarity >= similarity_threshold and similarity > best_similarity:
+                best_similarity = similarity
+                best_match = main_line
+        
+        # Add mapping result
+        mappings.append({
+            "original_line": orig_line["line_number"],
+            "original_content": orig_line["content"].rstrip('\n'),
+            "generated_line": best_match["line_number"] if best_match else None,
+            "generated_content": best_match["content"].rstrip('\n') if best_match else None,
+            "similarity": best_similarity
+        })
+    
+    # Calculate statistics
+    successful_mappings = sum(1 for m in mappings if m["generated_line"] is not None)
+    
+    return {
+        "original_function_start": original_function["start_line"],
+        "original_function_end": original_function["end_line"],
+        "main_block_start": main_block["start_line"],
+        "total_original_lines": len(original_function["lines"]),
+        "total_main_lines": len(main_block["lines"]),
+        "successful_mappings": successful_mappings,
+        "success_rate": successful_mappings / len(mappings) if mappings else 0.0,
+        "similarity_threshold": similarity_threshold,
+        "line_mappings": mappings
+    }
+"""
+
+# Keep the comment detection function from the previous artifact
+def _get_all_comment_and_docstring_lines(source_code: str) -> set[int]:
+    """
+    Get all line numbers that contain comments or docstrings using regex patterns.
+    This approach is robust and doesn't rely on Python tokenization.
+    Works even with malformed/incomplete Python code.
+    """
+    comment_lines = set()
+    lines = source_code.split('\n')
+    
+    in_triple_quote = False
+    triple_quote_type = None
+    
+    for line_num, line in enumerate(lines, 1):
+        original_line = line
+        stripped_line = line.strip()
+        
+        # Handle continuation of triple-quoted strings
+        if in_triple_quote:
+            comment_lines.add(line_num)
+            # Check if triple quote ends on this line
+            if triple_quote_type in original_line:
+                count = original_line.count(triple_quote_type)
+                if count % 2 == 1:  # Odd number means it closes
+                    in_triple_quote = False
+                    triple_quote_type = None
+            continue
+        
+        # Skip empty lines
+        if not stripped_line:
+            continue
+        
+        # Check for single-line comments
+        if stripped_line.startswith('#'):
+            comment_lines.add(line_num)
+            continue
+        
+        # Check for triple-quoted strings
+        patterns = [('"""', '"""'), ("'''", "'''"), ('r"""', '"""'), ("r'''", "'''")]
+        
+        triple_quote_found = False
+        for pattern, quote_type in patterns:
+            if pattern.lower() in original_line.lower():
+                comment_lines.add(line_num)
+                triple_quote_found = True
+                
+                pattern_pos = original_line.lower().find(pattern.lower())
+                remaining_line = original_line[pattern_pos + len(pattern):]
+                
+                if quote_type not in remaining_line:
+                    in_triple_quote = True
+                    triple_quote_type = quote_type
+                break
+        
+        if triple_quote_found:
+            continue
+        
+        # Check for inline comments
+        if '#' in original_line:
+            hash_pos = original_line.find('#')
+            before_hash = original_line[:hash_pos]
+            
+            single_quotes = before_hash.count("'")
+            double_quotes = before_hash.count('"')
+            
+            if single_quotes % 2 == 0 and double_quotes % 2 == 0:
+                comment_lines.add(line_num)
+    
+    return comment_lines
+
+
+
+
+
+
 def _find_functions_by_name(ast_tree: ast.AST, function_name: str, source_code: str) -> List[Dict]:
-    """Find all functions with the given name in the AST."""
     functions = []
     source_lines = source_code.split('\n')
     
@@ -535,9 +1216,145 @@ def _find_functions_by_name(ast_tree: ast.AST, function_name: str, source_code: 
     
     return functions
 
+def _get_all_comment_and_docstring_lines(source_code: str) -> set[int]:
+    """
+    Get all line numbers that contain comments or docstrings using regex patterns.
+    This approach is robust and doesn't rely on Python tokenization.
+    Works even with malformed/incomplete Python code.
+    
+    Returns:
+        Set of line numbers (1-based) that contain comments or docstrings
+    """
+    comment_lines = set()
+    lines = source_code.split('\n')
+    
+    in_triple_quote = False
+    triple_quote_type = None
+    triple_quote_start_line = None
+    
+    for line_num, line in enumerate(lines, 1):
+        original_line = line
+        stripped_line = line.strip()
+        
+        # Handle continuation of triple-quoted strings
+        if in_triple_quote:
+            comment_lines.add(line_num)
+            # Check if triple quote ends on this line
+            if triple_quote_type in original_line:
+                # Count occurrences to handle edge cases
+                count = original_line.count(triple_quote_type)
+                if count % 2 == 1:  # Odd number means it closes
+                    in_triple_quote = False
+                    triple_quote_type = None
+                    triple_quote_start_line = None
+            continue
+        
+        # Skip empty lines (don't mark them as comments)
+        if not stripped_line:
+            continue
+        
+        # Check for single-line comments (lines starting with #)
+        if stripped_line.startswith('#'):
+            comment_lines.add(line_num)
+            continue
+        
+        # Check for triple-quoted strings (docstrings and multi-line strings)
+        triple_quote_found = False
+        
+        # Look for different types of triple quotes
+        patterns = [
+            ('"""', '"""'),
+            ("'''", "'''"),
+        ]
+        
+        # Also check for raw strings and unicode strings
+        raw_patterns = [
+            ('r"""', '"""'),
+            ("r'''", "'''"),
+            ('u"""', '"""'),
+            ("u'''", "'''"),
+            ('b"""', '"""'),
+            ("b'''", "'''"),
+            ('f"""', '"""'),  # f-strings
+            ("f'''", "'''"),
+        ]
+        
+        all_patterns = patterns + raw_patterns
+        
+        for pattern, quote_type in all_patterns:
+            pattern_lower = pattern.lower()
+            original_lower = original_line.lower()
+            
+            if pattern_lower in original_lower:
+                # Found start of triple quote
+                comment_lines.add(line_num)
+                triple_quote_found = True
+                
+                # Find the position of the pattern
+                pattern_pos = original_lower.find(pattern_lower)
+                remaining_line = original_line[pattern_pos + len(pattern):]
+                
+                # Check if it closes on the same line
+                if quote_type in remaining_line:
+                    # Count closing quotes in the remaining line
+                    closing_count = remaining_line.count(quote_type)
+                    if closing_count % 2 == 1:
+                        # Single-line docstring/string, already handled by adding line_num
+                        pass
+                    else:
+                        # Multi-line starts (even number means it doesn't close)
+                        in_triple_quote = True
+                        triple_quote_type = quote_type
+                        triple_quote_start_line = line_num
+                else:
+                    # Multi-line docstring starts
+                    in_triple_quote = True
+                    triple_quote_type = quote_type
+                    triple_quote_start_line = line_num
+                break
+        
+        if triple_quote_found:
+            continue
+        
+        # Check for inline comments (# somewhere in the line)
+        if '#' in original_line:
+            # Simple heuristic to avoid # inside strings
+            hash_positions = []
+            for i, char in enumerate(original_line):
+                if char == '#':
+                    hash_positions.append(i)
+            
+            for hash_pos in hash_positions:
+                before_hash = original_line[:hash_pos]
+                
+                # Count quotes before the hash
+                single_quotes = before_hash.count("'")
+                double_quotes = before_hash.count('"')
+                
+                # Simple check: if even number of quotes, # is likely a comment
+                # This is not perfect but works for most cases
+                if single_quotes % 2 == 0 and double_quotes % 2 == 0:
+                    # Additional check: make sure we're not inside a triple quote
+                    if not _is_inside_multiline_string(before_hash):
+                        comment_lines.add(line_num)
+                        break
+    
+    return comment_lines
+
+def _is_inside_multiline_string(text_before_hash: str) -> bool:
+    """
+    Simple heuristic to check if we might be inside a multiline string.
+    This is not perfect but helps avoid false positives.
+    """
+    # Count triple quotes before the hash
+    triple_double = text_before_hash.count('"""')
+    triple_single = text_before_hash.count("'''")
+    
+    # If odd number of triple quotes, we might be inside a multiline string
+    return (triple_double % 2 == 1) or (triple_single % 2 == 1)
+
 
 def _find_main_block(ast_tree: ast.AST, source_code: str) -> Optional[Dict]:
-    """Find the 'if __name__ == \"__main__\":' block in the AST."""
     source_lines = source_code.split('\n')
     
     # Get all comment and docstring lines to filter them out
@@ -734,59 +1551,52 @@ def _map_function_lines(original_func: Dict, main_block: Dict, similarity_thresh
     }
 
 
-def _get_all_comment_and_docstring_lines(source_code: str) -> set:
+
+def _get_simple_comment_lines(lines: list) -> set:
     """
-    Get all line numbers that contain comments or docstrings using tokenization.
-    This properly handles multiline comments, docstrings, and inline comments.
+    Simple fallback method to detect comment lines without using tokenize.
+    This is more robust for files with syntax errors.
     """
-    import tokenize
-    import io
-    
     comment_lines = set()
+    in_multiline_string = False
+    multiline_delimiter = None
     
-    try:
-        # Use tokenize to properly identify all comments and strings
-        tokens = tokenize.generate_tokens(io.StringIO(source_code).readline)
+    for line_num, line in enumerate(lines, 1):
+        stripped = line.strip()
         
-        for token in tokens:
-            if token.type == tokenize.COMMENT:
-                # Add all lines covered by this comment
-                start_line, end_line = token.start[0], token.end[0]
-                for line_num in range(start_line, end_line + 1):
-                    comment_lines.add(line_num)
-            
-            elif token.type == tokenize.STRING:
-                # Check if this string is likely a docstring
-                if _is_likely_docstring(token, source_code):
-                    # Add all lines covered by this docstring
-                    start_line, end_line = token.start[0], token.end[0]
-                    for line_num in range(start_line, end_line + 1):
-                        comment_lines.add(line_num)
-    
-    except tokenize.TokenError:
-        # Fallback to simple line-by-line analysis if tokenization fails
-        lines = source_code.split('\n')
-        in_multiline_string = False
-        multiline_delimiter = None
+        # Skip empty lines
+        if not stripped:
+            continue
         
-        for i, line in enumerate(lines, 1):
-            stripped = line.strip()
-            
-            # Handle multiline strings
-            if in_multiline_string:
-                comment_lines.add(i)
-                if multiline_delimiter in line:
+        # Handle multiline strings/docstrings
+        if in_multiline_string:
+            comment_lines.add(line_num)
+            # Check if this line ends the multiline string
+            if multiline_delimiter in line:
+                # Count occurrences to handle cases like: '''text''' on same line
+                delimiter_count = line.count(multiline_delimiter)
+                if delimiter_count % 2 == 1:  # Odd number means it closes
                     in_multiline_string = False
                     multiline_delimiter = None
-            elif stripped.startswith('"""') or stripped.startswith("'''"):
-                comment_lines.add(i)
+            continue
+        
+        # Check for start of multiline strings
+        if ('"""' in stripped or "'''" in stripped):
+            if stripped.startswith('"""') or stripped.startswith("'''"):
                 delimiter = '"""' if stripped.startswith('"""') else "'''"
+                comment_lines.add(line_num)
                 # Check if it's a single-line docstring
-                if stripped.count(delimiter) < 2:
+                delimiter_count = stripped.count(delimiter)
+                if delimiter_count == 1:  # Only opening delimiter
                     in_multiline_string = True
                     multiline_delimiter = delimiter
-            elif stripped.startswith('#'):
-                comment_lines.add(i)
+                # If count is 2 or more, it's a complete docstring on one line
+                continue
+        
+        # Check for single-line comments
+        if stripped.startswith('#'):
+            comment_lines.add(line_num)
+            continue
     
     return comment_lines
 
@@ -820,6 +1630,41 @@ def _is_likely_docstring(token, source_code: str) -> bool:
     return False
 
 
+
+def _find_main_block_start(lines: list) -> Optional[int]:
+    """
+    Find the line number where the main block starts (if __name__ == "__main__":).
+    Returns None if no main block is found.
+    """
+    for line_num, line in enumerate(lines, 1):
+        stripped_line = line.strip()
+        # Check for main block pattern
+        if (stripped_line.startswith('if __name__') and '__main__' in stripped_line and 
+            stripped_line.endswith(':')):
+            return line_num
+    return None
+
+
+def _calculate_line_similarity(line1: str, line2: str) -> float:
+    """Calculate similarity between two lines of code."""
+    if not line1 and not line2:
+        return 1.0
+    if not line1 or not line2:
+        return 0.0
+    
+    # Remove extra whitespace and normalize
+    import re
+    line1_normalized = re.sub(r'\s+', ' ', line1.strip())
+    line2_normalized = re.sub(r'\s+', ' ', line2.strip())
+    
+    # Use difflib to calculate similarity
+    import difflib
+    similarity = difflib.SequenceMatcher(None, line1_normalized, line2_normalized).ratio()
+    
+    return similarity
+
+
+
 def _is_comment_only_line(line: str) -> bool:
     """Check if a line contains only comments (and whitespace)."""
     stripped = line.strip()
@@ -843,23 +1688,6 @@ def _is_comment_only_line(line: str) -> bool:
             return True
     
     return False
-
-
-def _calculate_line_similarity(line1: str, line2: str) -> float:
-    """Calculate similarity between two lines of code."""
-    if not line1 and not line2:
-        return 1.0
-    if not line1 or not line2:
-        return 0.0
-    
-    # Remove extra whitespace and normalize
-    line1_normalized = re.sub(r'\s+', ' ', line1.strip())
-    line2_normalized = re.sub(r'\s+', ' ', line2.strip())
-    
-    # Use difflib to calculate similarity
-    similarity = difflib.SequenceMatcher(None, line1_normalized, line2_normalized).ratio()
-    
-    return similarity
 
 
 # Example usage function
@@ -1263,7 +2091,7 @@ from pathlib import Path
 
 
 
-debug=True
+debug=False
 
 def get_fix_insertion_point(lines, error_line_idx):
     """
@@ -3432,6 +4260,568 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+from smells.CG.CG import CG
+from smells.IdQ.IdQ import IdQ
+from smells.IM.IM import IM
+from smells.IQ.IQ import IQ
+from smells.LC.LC import LC
+from smells.LPQ.LPQ import LPQ
+from smells.NC.NC import NC
+from smells.ROC.ROC import ROC
+
+from smells.Detector import Detector
+from smells.CG.CGDetector import CGDetector
+from smells.IdQ.IdQDetector import IdQDetector
+from smells.IM.IMDetector import IMDetector
+from smells.IQ.IQDetector import IQDetector
+from smells.LC.LCDetector import LCDetector
+from smells.LPQ.LPQDetector import LPQDetector
+from smells.NC.NCDetector import NCDetector
+from smells.ROC.ROCDetector import ROCDetector
+
+import importlib
+import traceback
+import os
+import ast
+import threading
+import builtins
+
+smell_classes = [IdQ, IM, IQ, LC, NC, ROC]
+staticDetection_smell_classes=[CG, LPQ]
+
+thread_local = threading.local()
+
+suppress_print=False
+
+def suppressed_print(*args, **kwargs):
+    # Check if current thread should suppress prints
+    if getattr(thread_local, 'suppress_prints', False):
+        return
+    # Otherwise, use original print
+    original_print(*args, **kwargs)
+
+# Store original print function
+if suppress_print: original_print = builtins.print
+
+# Global set to track files currently being processed (with lock for thread safety)
+processing_files = set()
+processing_lock = threading.Lock()
+
+# Global counter to track depth of detect_smells_from_file calls
+call_depth = 0
+call_depth_lock = threading.Lock()
+
+# Configuration for maximum allowed exec depth
+MAX_EXEC_DEPTH = 3  # You can change this value
+
+def contains_exec_comprehensive(file_path):
+    """
+    Comprehensive check for exec() usage in a Python file and its dependencies.
+    This checks both static analysis and import analysis.
+    """
+    checked_files = set()
+    
+    def check_file_for_exec(path):
+        """Recursively check a file and its imports for exec usage."""
+        if path in checked_files:
+            return False
+        
+        checked_files.add(path)
+        
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except (FileNotFoundError, UnicodeDecodeError) as e:
+            print(f"Could not read {path}: {e}")
+            return True  # Assume it contains exec if we can't read it
+        
+        # Quick string check first
+        if 'exec(' in content or 'exec ' in content:
+            print(f"File {path} contains 'exec' in source code")
+            return True
+        
+        try:
+            tree = ast.parse(content)
+        except SyntaxError as e:
+            print(f"Syntax error in {path}: {e}")
+            return True  # Assume it contains exec if we can't parse it
+        
+        # Check for exec() function calls
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                # Direct exec() call
+                if isinstance(node.func, ast.Name) and node.func.id == 'exec':
+                    print(f"File {path} contains exec() function call")
+                    return True
+                # builtins.exec or __builtins__.exec
+                elif isinstance(node.func, ast.Attribute):
+                    if (isinstance(node.func.value, ast.Name) and 
+                        node.func.value.id in ['builtins', '__builtins__'] and 
+                        node.func.attr == 'exec'):
+                        print(f"File {path} contains {node.func.value.id}.exec() function call")
+                        return True
+        
+        # Check imports for potential exec usage
+        file_dir = os.path.dirname(path)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if check_import_for_exec(alias.name, file_dir):
+                        return True
+            elif isinstance(node, ast.ImportFrom):
+                if node.module and check_import_for_exec(node.module, file_dir):
+                    return True
+        
+        return False
+    
+    def check_import_for_exec(module_name, base_dir):
+        """Check if an imported module contains exec."""
+        if not module_name:
+            return False
+        
+        # Skip standard library and common packages that we know don't use exec
+        skip_modules = {
+            'qiskit', 'numpy', 'scipy', 'matplotlib', 'pandas', 'os', 'sys', 
+            'json', 'csv', 'math', 'random', 'datetime', 're', 'collections',
+            'itertools', 'functools', 'operator', 'pathlib', 'typing',
+            'gettext', 'locale', 'threading', 'queue', 'urllib', 'http',
+            'socket', 'ssl', 'email', 'html', 'xml', 'logging', 'unittest',
+            'importlib', 'pkgutil', 'warnings', 'weakref', 'gc', 'copy',
+            'pickle', 'struct', 'zlib', 'gzip', 'bz2', 'lzma', 'tarfile',
+            'zipfile', 'hashlib', 'hmac', 'secrets', 'uuid', 'time',
+            'calendar', 'argparse', 'shlex', 'glob', 'fnmatch', 'linecache',
+            'shutil', 'stat', 'filecmp', 'tempfile', 'contextlib', 'abc',
+            'numbers', 'cmath', 'decimal', 'fractions', 'statistics',
+            'array', 'bisect', 'heapq', 'copy', 'pprint', 'reprlib',
+            'enum', 'graphlib', 'string', 'textwrap', 'unicodedata',
+            'stringprep', 'readline', 'rlcompleter', 'io', 'codecs'
+        }
+        
+        root_module = module_name.split('.')[0]
+        if root_module in skip_modules:
+            return False
+        
+        # Skip if it's in the Python standard library path
+        try:
+            spec = importlib.util.find_spec(module_name)
+            if spec and spec.origin:
+                # Check if it's in the standard library
+                import sysconfig
+                stdlib_path = sysconfig.get_path('stdlib')
+                if spec.origin.startswith(stdlib_path):
+                    return False
+                
+                # Check if it's in site-packages (third-party)
+                if 'site-packages' in spec.origin:
+                    # Only check local modules in our project directory
+                    return False
+        except (ImportError, ModuleNotFoundError, ValueError):
+            pass
+        
+        # Only check local project files
+        try:
+            # First, try relative import (local project files)
+            relative_path = os.path.join(base_dir, module_name.replace('.', os.sep) + '.py')
+            if os.path.exists(relative_path):
+                return check_file_for_exec(relative_path)
+            
+            # Check for package-style imports in the same directory
+            package_path = os.path.join(base_dir, module_name.replace('.', os.sep), '__init__.py')
+            if os.path.exists(package_path):
+                return check_file_for_exec(package_path)
+                
+        except Exception:
+            pass
+        
+        return False
+    
+    return check_file_for_exec(file_path)
+
+def has_exec_function(file_path):
+    """
+    Check if a Python file uses the exec() function in any form.
+    This is the simplified version for basic checking.
+    """
+    return contains_exec_comprehensive(file_path)
+
+class ExecDepthTracker:
+    """Thread-safe tracker for exec call depth per thread."""
+    
+    def __init__(self, max_depth=MAX_EXEC_DEPTH):
+        self.max_depth = max_depth
+        self.thread_data = {}
+        self.lock = threading.Lock()
+    
+    def increment_depth(self, thread_id):
+        """Increment exec depth for a thread and return current depth."""
+        with self.lock:
+            if thread_id not in self.thread_data:
+                self.thread_data[thread_id] = 0
+            self.thread_data[thread_id] += 1
+            return self.thread_data[thread_id]
+    
+    def decrement_depth(self, thread_id):
+        """Decrement exec depth for a thread."""
+        with self.lock:
+            if thread_id in self.thread_data:
+                self.thread_data[thread_id] = max(0, self.thread_data[thread_id] - 1)
+                if self.thread_data[thread_id] == 0:
+                    del self.thread_data[thread_id]
+    
+    def get_depth(self, thread_id):
+        """Get current exec depth for a thread."""
+        with self.lock:
+            return self.thread_data.get(thread_id, 0)
+    
+    def should_skip(self, thread_id):
+        """Check if current depth exceeds maximum allowed depth."""
+        return self.get_depth(thread_id) >= self.max_depth
+
+# Global exec depth tracker
+exec_tracker = ExecDepthTracker(MAX_EXEC_DEPTH)
+
+def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
+    """
+    Detect smells from a file with exec depth tracking.
+    
+    Args:
+        file: Path to the Python file to analyze
+        max_exec_depth: Maximum allowed depth of exec calls (default: MAX_EXEC_DEPTH)
+    """
+    global call_depth
+    
+    # Update the global tracker's max depth if specified
+    global exec_tracker
+    exec_tracker = ExecDepthTracker(max_exec_depth)
+    
+    # Increment call depth
+    with call_depth_lock:
+        call_depth += 1
+        current_depth = call_depth
+    
+    try:
+        # Normalize the file path to handle different path formats
+        normalized_file = os.path.normpath(os.path.abspath(file))
+        
+        # If this is not the first call (depth > 1), it means a file is calling other files
+        if current_depth > 3:
+            print(f"Skipping {file} - called from another file being analyzed")
+            return []
+        
+        # Check if this file is already being processed (direct recursion detection)
+        with processing_lock:
+            if normalized_file in processing_files:
+                print(f"Skipping {file} - direct recursion detected")
+                return []
+            
+            # Add file to processing set
+            processing_files.add(normalized_file)
+        
+        try:
+            # First, do static analysis to check for exec in the file itself
+            if has_exec_function(file):
+                print(f"Skipping {file} - contains exec() function")
+                return []
+            
+            # Proceed with detection but monitor for exec calls during runtime
+            print(f"No static exec detected in {file}, proceeding with smell detection")
+            
+            # Set up runtime exec detection with depth tracking
+            exec_detected = threading.Event()  # Thread-safe flag
+            original_exec = builtins.exec
+            original_exec_module = None
+            
+            # Try to get exec_module from importlib if available
+            try:
+                import importlib._bootstrap
+                original_exec_module = importlib._bootstrap.ModuleSpec.exec_module
+            except (ImportError, AttributeError):
+                pass
+            
+            def exec_hook(code, globals_dict=None, locals_dict=None):
+                """Hook to detect exec calls and track their depth."""
+                thread_id = threading.get_ident()
+                
+                # Get the call stack to understand where this exec is coming from
+                stack = traceback.extract_stack()
+                
+                # Skip if this exec call is from Python internals that we should ignore
+                for frame in stack:
+                    filename = frame.filename.lower()
+                    function_name = frame.name
+                    
+                    # Skip exec calls from Python's internal systems (imports, etc.)
+                    internal_patterns = [
+                        'importlib', 'runpy', 'pkgutil', 'site-packages',
+                        'ast.py', 'compile.py', 'types.py', '_bootstrap',
+                        'loader.py', 'machinery.py', 'frozen', '<frozen',
+                        'zipimport.py', '_bootstrap_external.py'
+                    ]
+                    
+                    internal_functions = [
+                        'exec_module', '_load_module_shim', 'load_module',
+                        'run_code', 'run_module', '_run_code', '_run_module_as_main',
+                        '_compile_bytecode', '_load_unlocked', 'get_code'
+                    ]
+                    
+                    if (any(pattern in filename for pattern in internal_patterns) or 
+                        function_name in internal_functions):
+                        # This is a legitimate system exec call, don't track depth
+                        return original_exec(code, globals_dict, locals_dict)
+                
+                # This appears to be a user-level exec call, track its depth
+                current_exec_depth = exec_tracker.increment_depth(thread_id)
+                
+                try:
+                    # Check if we should skip due to exec depth
+                    if current_exec_depth > max_exec_depth:
+                        print(f"Detected exec at depth {current_exec_depth} (max: {max_exec_depth}) - marking for skip")
+                        exec_detected.set()
+                        raise RuntimeError("EXEC_DETECTED_DURING_ANALYSIS")
+                    
+                    #print(f"Allowing exec at depth {current_exec_depth}")
+                    return original_exec(code, globals_dict, locals_dict)
+                    
+                finally:
+                    # Always decrement depth when exec finishes
+                    exec_tracker.decrement_depth(thread_id)
+            
+            def exec_module_hook(self, module):
+                """Hook to detect exec_module calls and track their depth."""
+                thread_id = threading.get_ident()
+                
+                # Get the call stack
+                stack = traceback.extract_stack()
+                
+                # Skip if this is from Python internals
+                for frame in stack:
+                    filename = frame.filename.lower()
+                    if any(pattern in filename for pattern in [
+                        'importlib', '_bootstrap', 'loader.py', 'machinery.py',
+                        'frozen', '<frozen', 'zipimport.py'
+                    ]):
+                        # This is internal module loading, allow it
+                        return original_exec_module(self, module)
+                
+                # This appears to be a user-level module execution, track depth
+                current_exec_depth = exec_tracker.increment_depth(thread_id)
+                
+                try:
+                    if current_exec_depth > max_exec_depth:
+                        print(f"Detected exec_module at depth {current_exec_depth} (max: {max_exec_depth}) - marking for skip")
+                        exec_detected.set()
+                        raise RuntimeError("EXEC_DETECTED_DURING_ANALYSIS")
+                    
+                    #print(f"Allowing exec_module at depth {current_exec_depth}")
+                    return original_exec_module(self, module)
+                    
+                finally:
+                    exec_tracker.decrement_depth(thread_id)
+            
+            # Import the detector classes (assuming they're available)
+            try:
+                #smell_classes = [CG, IdQ, IM, IQ, LC, LPQ, NC, ROC]
+                detector_objects = [Detector(smell_cls) for smell_cls in smell_classes]
+            except NameError:
+                print("Detector classes not imported. Please import CG, IdQ, IM, IQ, LC, LPQ, NC, ROC, Detector")
+                return []
+
+            smells_lock = threading.Lock()
+            all_smells = []
+            
+            # Replace print globally with our controlled version
+            original_print_backup = builtins.print
+            if suppress_print: builtins.print = suppressed_print
+            
+            # Replace exec globally with our hook
+            builtins.exec = exec_hook
+            
+            # Replace exec_module if available
+            if original_exec_module:
+                try:
+                    import importlib._bootstrap
+                    importlib._bootstrap.ModuleSpec.exec_module = exec_module_hook
+                except (ImportError, AttributeError):
+                    pass
+
+            def run_detection(detector):
+                # Set thread-local flag to suppress prints in this thread
+                thread_local.suppress_prints = True
+                
+                try:
+                    smells = detector.detect(file)
+                    with smells_lock:
+                        all_smells.extend(smells)
+                except RuntimeError as e:
+                    if "EXEC_DETECTED_DURING_ANALYSIS" in str(e):
+                        # This is our exec detection - don't add to results
+                        pass
+                    else:
+                        # Some other runtime error, log it
+                        print(f"Runtime error in detector {detector}: {e}")
+                except Exception as e:
+                    # Any other exception, log it but don't crash
+                    print(f"Error in detector {detector}: {e}")
+                finally:
+                    # Clear the suppression flag for this thread
+                    thread_local.suppress_prints = False
+
+            try:
+                threads = []
+                for detector in detector_objects:
+                    thread = threading.Thread(target=run_detection, args=(detector,))
+                    thread.start()
+                    threads.append(thread)
+
+                for thread in threads:
+                    thread.join()
+
+                # Check if exec was detected during the analysis
+                if exec_detected.is_set():
+                    print(f"Skipping {file} - exec() was called during analysis at depth > {max_exec_depth}")
+                    return []
+
+                return all_smells
+                
+            finally:
+                # Always restore original functions
+                builtins.print = original_print_backup
+                builtins.exec = original_exec
+                
+                # Restore exec_module if we modified it
+                if original_exec_module:
+                    try:
+                        import importlib._bootstrap
+                        importlib._bootstrap.ModuleSpec.exec_module = original_exec_module
+                    except (ImportError, AttributeError):
+                        pass
+        
+        finally:
+            # Always remove file from processing set when done
+            with processing_lock:
+                processing_files.discard(normalized_file)
+    
+    finally:
+        # Decrement call depth
+        with call_depth_lock:
+            call_depth -= 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import json
 from pathlib import Path
 
@@ -3457,114 +4847,127 @@ def save_results_to_file(results: dict, file_path: Path):
 
 
 
-# This will store all results per exe
-results = {}
+def get_function_smells(exe, executables_dict_exe):
 
-def wrapper(target_fn, output_dict, key, *args, **kwargs):
-    """Helper to run a function and store result in a shared dictionary."""
-    output_dict[key] = target_fn(*args, **kwargs)
+    filename = os.path.basename(exe)  # gets "executable_initializer.py"
+    if filename.startswith("executable_") and filename.endswith(".py"):
+        function = filename[len("executable_"):-len(".py")]
 
-
-def autofix_map_detect( file_path:str ):
-
-    global results
-
+    
+    result = {}
     threads = []
-    executables_dict={}
 
-    file = os.path.abspath(file_path)
-    output_saving_folder=os.path.abspath("C:/Users/rical/OneDrive/Desktop/SmellResults")
+    
+    # Start thread for map_lines_simple
+    class_function_map = threading.Thread(target=wrapper, args=(map_lines_simple, result, 'map_lines_simple', executables_dict_exe, exe), kwargs={'similarity_threshold': 0.5})
+    class_function_map.start()
+    threads.append(class_function_map)
+    
 
-    generator = FunctionExecutionGenerator()
+    # Start thread for map_lines_of_code
+    #main_map = threading.Thread(target=wrapper, args=(map_lines_of_code, result, 'map_lines_of_code', executables_dict_exe, function, exe), kwargs={'similarity_threshold': 0.5})
+    main_map = threading.Thread(target=wrapper, args=(map_lines_of_code, result, 'map_lines_of_code', executables_dict_exe, function, exe),)
+    main_map.start()
+    threads.append(main_map)
+    
+    
+    # Start thread for auto_fix_with_mapping (we keep only the mappings)
+    mappings = threading.Thread(target=wrapper, args=(lambda p: auto_fix_with_mapping(p, debug=False)[1], result, 'auto_fix_with_mapping', Path(exe)))
+    mappings.start()
+    threads.append(mappings)
+    
+
+    # Wait for all threads to finish for this exe
+    for t in threads:
+        t.join()
+    
+    # Reduce map_lines_simple to just {generated_line: original_line}
+    if 'map_lines_simple' in result and 'line_mappings' in result['map_lines_simple']:
+        result['map_lines_simple'] = {
+            mapping['generated_line']: mapping['original_line']
+            for mapping in result['map_lines_simple']['line_mappings']
+            if 'generated_line' in mapping and 'original_line' in mapping
+        }
+
+    # Reduce map_lines_of_code to just {generated_line: original_line}
+    
+    if 'map_lines_of_code' in result and 'mapping' in result['map_lines_of_code']:
+        line_mappings = result['map_lines_of_code']['mapping'].get('line_mappings', [])
+        result['map_lines_of_code'] = {
+            mapping['generated_line']: mapping['original_line']
+            for mapping in line_mappings
+            if isinstance(mapping.get('generated_line'), int) and isinstance(mapping.get('original_line'), int)
+        }
+    
+    
+
+    # Save result for this exe
+    results[exe] = result
+
+    #save_results_to_file(results[exe], Path(f"results_dump_{function}.json"))
+
+    
+    
+    auto_fix_map_var = results[exe].get("auto_fix_with_mapping", {})
+    map_lines_simple_var = results[exe].get("map_lines_simple", {})
+    map_lines_of_code_var = results[exe].get("map_lines_of_code", {})
+
+    print(f"Smell detection in function executable file: {exe}")
+    smells = detect_smells_from_file(exe)
+
+    static_detectors_objects = [Detector(smell_cls) for smell_cls in staticDetection_smell_classes]
+    for detector in static_detectors_objects:
+        static_smells=detector.detect(executables_dict_exe)
+        for static_smell in static_smells:
+            smells.append(static_smell)
+
+    for smell in smells:
+
+        if smell.type in ["CG", "LPQ"]: pass
+
+        """
+        if smell.type in ["CG", "LPQ"]:
 
 
-    #try: 
-        # functions_with_circuits = list(set( generator.find_all_functions_with_circuits(open(file, 'r', encoding="utf-8").read(), file) ))
-
-    output_directory = "generated_executables"
-    executables = generator.analyze_and_generate_all_executables(file, output_directory)
-
-    print(f"\nGenerated {len(executables)} executable files in '{output_directory}/' directory")
-
-    # Map each generated executable to its original file
-    for exe in executables:
-        # Compose full filename: executable_<function_name>.py
-        exe_filename = f"executable_{exe}.py"
-        
-        # Join with output directory to get full path
-        abs_exe_path = os.path.abspath(os.path.join(output_directory, exe_filename))
-        abs_source_path = os.path.abspath(file)
-
-        executables_dict[abs_exe_path] = abs_source_path
-
-
-    #try:
-
-    for exe in executables_dict:
-
-        print(exe)
-
-        filename = os.path.basename(exe)  # gets "executable_initializer.py"
-        if filename.startswith("executable_") and filename.endswith(".py"):
-            function = filename[len("executable_"):-len(".py")]
-
-        print(function)
-
-
-        
-        result = {}
-        threads = []
-
-        # Start thread for map_lines_simple
-        class_function_map = threading.Thread(target=wrapper, args=(map_lines_simple, result, 'map_lines_simple', executables_dict[exe], exe), kwargs={'similarity_threshold': 0.5})
-        class_function_map.start()
-        threads.append(class_function_map)
-
-        # Start thread for map_lines_of_code
-        main_map = threading.Thread(target=wrapper, args=(map_lines_of_code, result, 'map_lines_of_code', executables_dict[exe], function, exe), kwargs={'similarity_threshold': 0.5})
-        main_map.start()
-        threads.append(main_map)
-
-        # Start thread for auto_fix_with_mapping (we keep only the mappings)
-        mappings = threading.Thread(target=wrapper, args=(lambda p: auto_fix_with_mapping(p, debug=True)[1], result, 'auto_fix_with_mapping', Path(exe)))
-        mappings.start()
-        threads.append(mappings)
-
-        # Wait for all threads to finish for this exe
-        for t in threads:
-            t.join()
-
-        # Reduce map_lines_simple to just {generated_line: original_line}
-        if 'map_lines_simple' in result and 'line_mappings' in result['map_lines_simple']:
-            result['map_lines_simple'] = {
-                mapping['generated_line']: mapping['original_line']
-                for mapping in result['map_lines_simple']['line_mappings']
-                if 'generated_line' in mapping and 'original_line' in mapping
-            }
-
-        # Reduce map_lines_of_code to just {generated_line: original_line}
-        if 'map_lines_of_code' in result and 'mapping' in result['map_lines_of_code']:
-            line_mappings = result['map_lines_of_code']['mapping'].get('line_mappings', [])
-            result['map_lines_of_code'] = {
-                mapping['generated_line']: mapping['original_line']
-                for mapping in line_mappings
-                if isinstance(mapping.get('generated_line'), int) and isinstance(mapping.get('original_line'), int)
-            }
-
-        # Save result for this exe
-        results[exe] = result
-
-        save_results_to_file(results, Path("results_dump.json"))
-        
-        auto_fix_map_var = results[exe].get("auto_fix_with_mapping", {})
-        map_lines_simple_var = results[exe].get("map_lines_simple", {})
-        
-
-        print("Detection...")
-        smells = detect_smells_from_file(exe)
-
-        for smell in smells:
             row = smell.row
+
+            if row is None:
+                continue  # Skip if the smell doesn't have a row
+            
+
+            matched_tuple = None
+
+            # Search for the tuple in auto_fix_with_mapping whose value list includes this row
+            for tuple_str, line_list in auto_fix_map_var.items():
+                if isinstance(line_list, list) and row in line_list:
+                    matched_tuple = tuple_str
+                    break
+
+            if matched_tuple is None:
+                continue  # No mapping found for this smell
+
+            
+            # Convert tuple string (e.g., "(3, 0, 77)") to actual tuple
+            parsed_tuple = matched_tuple
+            if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
+                continue
+
+            generated_line = parsed_tuple[0]
+
+            # Look up original line from map_lines_simple
+            original_line = map_lines_simple_var.get(generated_line)
+
+            # Attach all this info to the smell object
+            smell.set_row(original_line)
+            smell.set_column_start(None)
+            smell.set_column_end(None)
+        """
+
+
+        if smell.type in  ["IM", "IQ", "IdQ"]:
+
+            row = smell.row
+
             if row is None:
                 continue  # Skip if the smell doesn't have a row
 
@@ -3586,40 +4989,317 @@ def autofix_map_detect( file_path:str ):
                 continue
 
             generated_line = parsed_tuple[0]
-            col_start = parsed_tuple[1]
-            col_end = parsed_tuple[2]
 
             # Look up original line from map_lines_simple
-            original_line = map_lines_simple_var.get(generated_line)
+            original_line = map_lines_of_code_var.get(generated_line)
 
             # Attach all this info to the smell object
             smell.set_row(original_line)
+            smell.set_column_start(None)
+            smell.set_column_end(None)
 
-            """ 
-            setattr(smell, "original_line", original_line)
-            setattr(smell, "original_column_start", col_start)
-            setattr(smell, "original_column_end", col_end)
-            """
+        if smell.type=="LC": pass
+
+        if smell.type == "ROC":
+
+            rows = smell.rows
+
+            if rows is None or not isinstance(rows, list) or len(rows) == 0:
+                continue  # Skip if the smell doesn't have rows or rows is empty
+
+            # Store the final mapped rows
+            original_rows = []
+
+            for row_tuple in rows:
+
+                if not isinstance(row_tuple, tuple):
+                    continue  # Skip if it's not a tuple
+                
+                # Process each row number in the tuple
+                tuple_original_rows = []
+                for row in row_tuple:
+                    if row is None:
+                        tuple_original_rows.append(None)
+                        continue
+                    
+                    matched_tuple = None
+                    
+                    # Search for the tuple in auto_fix_with_mapping whose value list includes this row
+                    for tuple_str, line_list in auto_fix_map_var.items():
+                        if isinstance(line_list, list) and row in line_list:
+                            matched_tuple = tuple_str
+                            break
+                    
+                    if matched_tuple is None:
+                        tuple_original_rows.append(None)  # No mapping found for this row
+                        continue
+                    
+                    # The matched_tuple should already be a tuple, not a string
+                    parsed_tuple = matched_tuple
+                    
+                    generated_line = parsed_tuple[0]
+                    
+                    # Look up original line from map_lines_simple
+                    original_line = map_lines_of_code_var.get(generated_line)
+                    tuple_original_rows.append(original_line)
+                
+                # Add the processed tuple to our results
+                original_rows.append(tuple(tuple_original_rows))
+
+
+            # Only proceed if we found at least some mappings
+            if not original_rows or all(all(row is None for row in row_tuple) for row_tuple in original_rows):
+                continue  # No valid mappings found for any rows
+
+            # Attach the mapped rows to the smell object 
+            smell.set_rows(original_rows)
+            smell.set_column_start(None)
+            smell.set_column_end(None)
 
             
+
+        if smell.type=="NC":
+            # Pre-build a reverse lookup dictionary for faster searching
+            row_to_tuple_map = {}
+            for tuple_str, line_list in auto_fix_map_var.items():
+                if isinstance(line_list, list):
+                    for line in line_list:
+                        row_to_tuple_map[line] = tuple_str
+
+            def map_single_row(row):
+                """Helper function to map a single row number"""
+                if row is None:
+                    return None
+                
+                # Fast lookup using pre-built dictionary
+                matched_tuple = row_to_tuple_map.get(row)
+                
+                if matched_tuple is None:
+                    return None
+                
+                # Convert tuple string to actual tuple
+                parsed_tuple = matched_tuple
+                if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
+                    return None
+                
+                generated_line = parsed_tuple[0]
+                
+                # Look up original line from map_lines_simple
+                original_line = map_lines_of_code_var.get(generated_line)
+                return original_line
+
+            # Track if we found any valid mappings
+            found_mappings = False
+
+            # Process run_calls
+            run_calls = smell.run_calls if hasattr(smell, 'run_calls') else []
+            if isinstance(run_calls, list):
+                for call in run_calls:
+                    if isinstance(call, dict) and 'row' in call:
+                        original_row = map_single_row(call['row'])
+                        if original_row is not None:
+                            call['row'] = original_row
+                            found_mappings = True
+
+            # Process assign_parameter_calls  
+            assign_parameter_calls = smell.assign_parameter_calls if hasattr(smell, 'assign_parameter_calls') else []
+            if isinstance(assign_parameter_calls, list):
+                for call in assign_parameter_calls:
+                    if isinstance(call, dict) and 'row' in call:
+                        original_row = map_single_row(call['row'])
+                        if original_row is not None:
+                            call['row'] = original_row
+                            found_mappings = True
+
+            # Process execute_calls (in case it becomes a list in the future)
+            execute_calls = smell.execute_calls if hasattr(smell, 'execute_calls') else []
+            if isinstance(execute_calls, list):
+                for call in execute_calls:
+                    if isinstance(call, dict) and 'row' in call:
+                        original_row = map_single_row(call['row'])
+                        if original_row is not None:
+                            call['row'] = original_row
+                            found_mappings = True
+
+            # Process bind_parameter_calls (in case it becomes a list in the future)
+            bind_parameter_calls = smell.bind_parameter_calls if hasattr(smell, 'bind_parameter_calls') else []
+            if isinstance(bind_parameter_calls, list):
+                for call in bind_parameter_calls:
+                    if isinstance(call, dict) and 'row' in call:
+                        original_row = map_single_row(call['row'])
+                        if original_row is not None:
+                            call['row'] = original_row
+                            found_mappings = True
+
+            # Only continue if we found at least some valid mappings
+            if not found_mappings:
+                continue  # No valid mappings found for any rows
+
+            # Clear the main row attributes since they're not relevant for this smell type
+            smell.set_row(None)
+            smell.set_column_start(None)
+            smell.set_column_end(None)
+
+
+    
+    return smells
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Pre-import potentially problematic modules before any threading
+def preload_modules():
+    try:
+        import cirq
+        #print("Pre-loaded cirq successfully")
+    except ImportError:
+        print("cirq not available, skipping pre-load")
+    except Exception as e:
+        print(f"Warning: Could not pre-load cirq: {e}")
+
+# Call this before starting any threads
+preload_modules()
+
+
+def clear_folder(folder_path):
+    folder_path = os.path.abspath(folder_path)
+
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.remove(file_path)  # Remove file or symlink
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)  # Recursively delete a folder
+        except Exception as e:
+            print(f"Failed to delete {file_path}. Reason: {e}")
+
+
+
+
+# This will store all results per exe
+results = {}
+
+def wrapper(target_fn, output_dict, key, *args, **kwargs):
+    """Helper to run a function and store result in a shared dictionary."""
+    output_dict[key] = target_fn(*args, **kwargs)
+
+
+def autofix_map_detect( file_path:str ):
+
+    global results
+
+    threads = []
+    executables_dict={}
+
+    file = os.path.abspath(file_path)
+    output_saving_folder=os.path.abspath("C:/Users/rical/OneDrive/Desktop/SmellResults")
+
+    generator = FunctionExecutionGenerator()
+
+
+    output_directory = "generated_executables"
+    executables = generator.analyze_and_generate_all_executables(file, output_directory)
+
+    print(f"\nGenerated {len(executables)} executable files in '{output_directory}/' directory")
+
+    # Map each generated executable to its original file
+    for exe in executables:
+        # Compose full filename: executable_<function_name>.py
+        exe_filename = f"executable_{exe}.py"
         
-        for smell in smells:
-            print(smell.as_dict())
+        # Join with output directory to get full path
+        abs_exe_path = os.path.abspath(os.path.join(output_directory, exe_filename))
+        abs_source_path = os.path.abspath(file)
+
+        executables_dict[abs_exe_path] = abs_source_path
+
+    smells_dict = {}
+    threads = []
+
+    # Thread-safe lock to avoid race conditions on smells_dict
+    lock = threading.Lock()
+
+    
+    def process_exe(exe):
+        result = get_function_smells(exe, executables_dict[exe])
+        with lock:
+            smells_dict[exe] = result
+
+    for exe in executables_dict:
+        
+        try:
+            print(f"Starting process in {exe}")
+            thread = threading.Thread(target=process_exe, args=(exe,))
+            thread.start()
+            threads.append(thread)
+        except Exception as e: print(f"Error while working on {exe}: {e}")
+
+    # Wait for all threads to complete
+    for t in threads:
+        t.join()
 
 
-        exit(0)
+
+    file_smells=[]
+
+    for smells in smells_dict:
+        for smell in smells_dict[smells]:
+            file_smells.append(smell)
+    
+    # Remove duplicates
+    def make_hashable(obj):
+        """Convert unhashable types to hashable ones"""
+        if isinstance(obj, dict):
+            return tuple(sorted((k, make_hashable(v)) for k, v in obj.items()))
+        elif isinstance(obj, list):
+            return tuple(make_hashable(item) for item in obj)
+        elif isinstance(obj, set):
+            return tuple(sorted(make_hashable(item) for item in obj))
+        else:
+            return obj
+
+    seen = set()
+    unique_smells = []
+
+    for smell in file_smells:
+        # Access the dictionary attribute of the object
+        smell_dict = smell.__dict__
+        
+        # Convert the dictionary to a hashable representation, handling nested unhashable types
+        smell_tuple = make_hashable(smell_dict)
+        
+        if smell_tuple not in seen:
+            seen.add(smell_tuple)
+            unique_smells.append(smell)
+
+    file_smells = unique_smells
+
+
+
+    #CLEAR SECTION
+    for ex in executables_dict:
+        folder_path = os.path.dirname(ex)
+        clear_folder(folder_path)
+        break 
+
+    return file_smells
+    
 
 
 
 
-            
 
-            
-
-        #except Exception as e: print(e)
-
-
-        """
+    """
 
         import pprint
         pprint.pp(executables_dict)
@@ -3679,16 +5359,10 @@ def autofix_map_detect( file_path:str ):
     
         executables_dict.clear()
         
-        """
+    """
 
         
         
-    #except Exception as e:
-    #    print(f"Error analyzing {file}: {e}")
-
-
-
-    print("Analysis completed")
 
 
 
@@ -3713,4 +5387,9 @@ if __name__ == "__main__":
     )"""
 
 
-    autofix_map_detect("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/mpqp/mpqp/core/circuit.py")
+    smells=autofix_map_detect("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/qiskit_algorithms/amplitude_estimators/ae.py")
+    for smell in smells:
+        print(smell.as_dict())
+
+
+

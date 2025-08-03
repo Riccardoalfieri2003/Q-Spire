@@ -45,7 +45,7 @@ class IQDetector(Detector):
                     second_index, second_op_name, row, col_start, col_end = qubit_ops[1]
                     distance = second_index - first_index
 
-                    if distance > max_distanze:
+                    if distance > max_distance:
                         smell = IQ(
                             row=row,
                             column_start=col_start,

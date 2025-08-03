@@ -241,7 +241,7 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
         normalized_file = os.path.normpath(os.path.abspath(file))
         
         # If this is not the first call (depth > 1), it means a file is calling other files
-        if current_depth > 1:
+        if current_depth > 3:
             print(f"Skipping {file} - called from another file being analyzed")
             return []
         
@@ -445,12 +445,13 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
 
 
 
+
+
+
 if __name__ == "__main__":
-    # python -m test.GeneralFileTest
+    # python -m test.StaticFileDetection
     
-    # Test with the problematic file
-    #file = os.path.abspath("")
-    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/generated_executables/executable_to_other_device.py")
+    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/generated_executables/executable_initializer.py")
     if os.path.exists(file):
         # You can change the max_exec_depth here (default is 3)
         result = detect_smells_from_file(file, max_exec_depth=3)
