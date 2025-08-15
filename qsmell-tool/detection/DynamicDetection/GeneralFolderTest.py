@@ -112,7 +112,7 @@ def save_output(path: str, folder_name: str, smells: dict):
 
 if __name__ == "__main__":
 
-    #python -m test.GeneralFolderTest
+    # python -m detection.DynamicDetection.GeneralFolderTest
 
     folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/alt_def")
     smells = detect_smells_from_folder(folder)

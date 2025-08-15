@@ -369,6 +369,9 @@ def derive_circuit(
     return gradient
 
 if __name__ == "__main__":
+
+    print("Yoooo")
+
     circuit = QuantumCircuit(2)  # Mock QuantumCircuit with 2 qubits and 2 parameters
     parameter = type('MockParameter', (), {
             '__init__': lambda self, *args, **kwargs: None,

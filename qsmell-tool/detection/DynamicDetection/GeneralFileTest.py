@@ -28,7 +28,7 @@ smell_classes = [CG, IdQ, IM, IQ, LC, LPQ, NC, ROC]
 
 thread_local = threading.local()
 
-suppress_print=False
+suppress_print=True
 
 def suppressed_print(*args, **kwargs):
     # Check if current thread should suppress prints
@@ -446,11 +446,11 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
 
 
 if __name__ == "__main__":
-    # python -m test.GeneralFileTest
+    # python -m detection.DynamicDetection.GeneralFileTest
     
     # Test with the problematic file
     #file = os.path.abspath("")
-    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/generated_executables/executable_to_other_device.py")
+    file = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/generated_executables/executable_derive_circuit.py")
     if os.path.exists(file):
         # You can change the max_exec_depth here (default is 3)
         result = detect_smells_from_file(file, max_exec_depth=3)
