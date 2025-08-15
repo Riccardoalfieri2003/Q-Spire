@@ -802,6 +802,7 @@ except ImportError:
                 relative_indent = max(0, current_indent - base_indent)
                 indent_str = ' ' * relative_indent
                 
+                """
                 # Replace return statements with sys.exit(0)
                 if stripped_line.startswith('return '):
                     # Add a comment showing what was returned, then sys.exit(0)
@@ -814,6 +815,18 @@ except ImportError:
                     processed_lines.append(f'{indent_str}# Original function had bare return')
                     processed_lines.append(f'{indent_str}sys.exit(0)')
                     continue
+                """
+
+                                # Replace return statements with sys.exit(0)
+                if stripped_line.startswith('return '):
+                    # Keep original return as comment on same line
+                    processed_lines.append(f'{indent_str}sys.exit(0)  # {stripped_line}')
+                    continue
+                elif stripped_line == 'return':
+                    # Handle bare return statements
+                    processed_lines.append(f'{indent_str}sys.exit(0)  # return')
+                    continue
+
                 
                 # Skip or modify super() calls
                 if 'super().__init__()' in stripped_line or 'super().' in stripped_line:
@@ -1118,7 +1131,7 @@ except ImportError:
                 code_parts.append('')
         
         # Generate parameter instantiation
-        code_parts.append('# Parameter instantiation')
+        #code_parts.append('# Parameter instantiation')
         code_parts.append('if __name__ == "__main__":')
         
         # Find the class that contains this function (if any)
@@ -1137,6 +1150,7 @@ except ImportError:
             else:
                 code_parts.append(f'    {instance_code}')
 
+        """
         code_parts.append('')
         code_parts.append('# Fix parameter consistency for gradient calculations')
         code_parts.append('# Ensure parameter_values match circuit parameters exactly')
@@ -1208,7 +1222,8 @@ except ImportError:
         code_parts.append('                                circuit._param_list.append(param)')
         code_parts.append('                        circuit.parameters = MockParameterView(circuit._param_list)')
         code_parts.append('')
-        
+        """
+
         # Add the function body with proper indentation
         body_lines = func_info['body'].split('\n')
 

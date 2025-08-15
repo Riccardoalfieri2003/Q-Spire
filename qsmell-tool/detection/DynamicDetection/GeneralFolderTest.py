@@ -21,7 +21,7 @@ from smells.NC.NCDetector import NCDetector
 from smells.ROC.ROCDetector import ROCDetector
 
 import os
-from test.GeneralFileTest import detect_smells_from_file
+from detection.DynamicDetection.GeneralFileTest import detect_smells_from_file
 
 
 import threading

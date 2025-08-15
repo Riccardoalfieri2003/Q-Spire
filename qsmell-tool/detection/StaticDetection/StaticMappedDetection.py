@@ -2,8 +2,8 @@ import csv
 from pathlib import Path
 import shutil
 import threading
-from test.StaticCircuit import FunctionExecutionGenerator
 import os
+from detection.StaticDetection.StaticCircuit import FunctionExecutionGenerator
 #from test.StaticFileDetection import detect_smells_from_file
 #from test.GeneralFolderTest import save_output
 
@@ -3676,9 +3676,8 @@ import re
 import ast
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
-
+"""
 class LineMapper:
-    """Tracks line number changes as code is modified during auto-fixing"""
     
     def __init__(self):
         self.mappings = {}  # Dict with structure: {(original_line, start_col, end_col): [fixed_lines]}
@@ -3686,25 +3685,20 @@ class LineMapper:
     
     def add_mapping(self, original_line: int, original_start_col: int, original_end_col: int,
                    fixed_lines: List[int]):
-        """Add a mapping from original position to fixed lines"""
         key = (original_line, original_start_col, original_end_col)
         self.mappings[key] = fixed_lines
     
     def add_deletion_mapping(self, original_line: int, original_start_col: int, original_end_col: int):
-        """Add a mapping for a deleted line"""
         key = (original_line, original_start_col, original_end_col)
         self.mappings[key] = []  # Empty list indicates deletion
     
     def update_line_offset(self, offset_change: int):
-        """Update the line offset for subsequent operations"""
         self.line_offset += offset_change
     
     def get_adjusted_line(self, original_line: int) -> int:
-        """Get the current line number accounting for all previous changes"""
         return original_line + self.line_offset
     
     def update_all_mappings_after_line(self, after_line: int, offset: int):
-        """Update all existing mappings that come after a certain line due to insertions/deletions"""
         updated_mappings = {}
         for (orig_line, start_col, end_col), fixed_lines in self.mappings.items():
             # The original line number never changes, but the fixed line numbers do
@@ -3721,6 +3715,114 @@ class LineMapper:
                 # Keep deleted mappings as empty lists
                 updated_mappings[(orig_line, start_col, end_col)] = fixed_lines
         self.mappings = updated_mappings
+"""
+
+class LineMapper:
+    """Tracks line number changes as code is modified during auto-fixing"""
+    
+    def __init__(self):
+        self.mappings = {}  # Dict with structure: {(original_line, start_col, end_col): [fixed_lines]}
+        self.cumulative_offset = 0  # Track total line changes
+    
+    def add_mapping(self, original_line: int, original_start_col: int, original_end_col: int,
+                   fixed_lines: List[int]):
+        """Add a mapping from original position to fixed lines"""
+        key = (original_line, original_start_col, original_end_col)
+        self.mappings[key] = fixed_lines
+    
+    def add_deletion_mapping(self, original_line: int, original_start_col: int, original_end_col: int):
+        """Add a mapping for a deleted line"""
+        key = (original_line, original_start_col, original_end_col)
+        self.mappings[key] = []  # Empty list indicates deletion
+        # Update offset for deletion
+        self.cumulative_offset -= 1
+    
+    def add_insertion_mapping(self, original_line: int, original_start_col: int, original_end_col: int,
+                             num_lines_inserted: int):
+        """Add mapping for insertions and update offset"""
+        current_fixed_line = original_line + self.cumulative_offset
+        key = (original_line, original_start_col, original_end_col)
+        
+        # Create list of new line numbers
+        new_lines = [current_fixed_line + i for i in range(num_lines_inserted)]
+        self.mappings[key] = new_lines
+        
+        # Update offset for future mappings
+        self.cumulative_offset += (num_lines_inserted - 1)  # -1 because original line is replaced
+        
+        # Update all existing mappings that come after this line
+        self.update_mappings_after_change(current_fixed_line, num_lines_inserted - 1)
+    
+    def add_replacement_mapping(self, original_line: int, original_start_col: int, original_end_col: int,
+                               num_replacement_lines: int):
+        """Add mapping for line replacements"""
+        current_fixed_line = original_line + self.cumulative_offset
+        key = (original_line, original_start_col, original_end_col)
+        
+        # Create list of replacement line numbers
+        new_lines = [current_fixed_line + i for i in range(num_replacement_lines)]
+        self.mappings[key] = new_lines
+        
+        # Update offset (replacement of 1 line with N lines = +N-1 offset)
+        offset_change = num_replacement_lines - 1
+        self.cumulative_offset += offset_change
+        
+        # Update all existing mappings that come after this line
+        if offset_change != 0:
+            self.update_mappings_after_change(current_fixed_line, offset_change)
+    
+    def update_mappings_after_change(self, change_line: int, offset: int):
+        """Update all existing mappings that come after a line change"""
+        if offset == 0:
+            return
+            
+        updated_mappings = {}
+        for (orig_line, start_col, end_col), fixed_lines in self.mappings.items():
+            if fixed_lines:  # Only update non-deleted mappings
+                updated_fixed_lines = []
+                for fixed_line in fixed_lines:
+                    # Update lines that come after the change point
+                    if fixed_line > change_line:
+                        updated_fixed_lines.append(fixed_line + offset)
+                    else:
+                        updated_fixed_lines.append(fixed_line)
+                updated_mappings[(orig_line, start_col, end_col)] = updated_fixed_lines
+            else:
+                # Keep deleted mappings unchanged
+                updated_mappings[(orig_line, start_col, end_col)] = fixed_lines
+        self.mappings = updated_mappings
+    
+    def get_current_line_number(self, original_line: int) -> int:
+        """Get what line number an original line maps to currently"""
+        return original_line + self.cumulative_offset
+    
+    def apply_fix_and_update_mapping(self, original_line: int, original_start_col: int, 
+                                   original_end_col: int, fix_action: str, num_lines: int = 1):
+        """Apply a fix and update mapping in one operation to ensure consistency"""
+        if fix_action in ['delete', 'smart_delete']:
+            self.add_deletion_mapping(original_line, original_start_col, original_end_col)
+        elif fix_action == 'insert':
+            self.add_insertion_mapping(original_line, original_start_col, original_end_col, num_lines)
+        elif fix_action == 'replace':
+            self.add_replacement_mapping(original_line, original_start_col, original_end_col, num_lines)
+        else:
+            # For other actions, assume 1:1 mapping with current offset
+            current_line = self.get_current_line_number(original_line)
+            self.add_mapping(original_line, original_start_col, original_end_col, [current_line])
+    
+    # Compatibility methods for backward compatibility
+    def update_all_mappings_after_line(self, after_line: int, offset: int):
+        """Deprecated: Use update_mappings_after_change instead"""
+        self.update_mappings_after_change(after_line, offset)
+    
+    def update_line_offset(self, offset_change: int):
+        """Deprecated: Offset is now handled automatically in the new methods"""
+        self.cumulative_offset += offset_change
+    
+    def get_adjusted_line(self, original_line: int) -> int:
+        """Deprecated: Use get_current_line_number instead"""
+        return self.get_current_line_number(original_line)
+
 
 
 """
@@ -4182,11 +4284,48 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
 
         fix = make_fix(err_type, err_msg, line_text, lines, line_no)
 
+        """
         if isinstance(fix, dict):
             # Apply fix with mapping
             lines = apply_fix_with_mapping(lines, fix, line_no, mapper, original_main_lines)
             target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             
+            if fix.get('action') in ['delete', 'smart_delete']:
+                if debug: print(f"🗑️  Applied deletion at line {line_no}")
+            else:
+                if debug: print(f"🔧 Applied {fix['action']} at line {line_no}")
+                if 'lines' in fix and debug:
+                    print("   Fix content:")
+                    for line in fix['lines']:
+                        if debug: print(f"     + {line}")
+        else:
+            if debug: print("❌ No fix could be generated for this error")
+            return False, None
+        """
+
+        if isinstance(fix, dict):
+            # Find the original column info for this line if it exists in main function
+            orig_start_col = 0
+            orig_end_col = 0
+            
+            # Look up the original column positions from original_main_lines
+            if line_no in original_main_lines:
+                orig_start_col, orig_end_col = original_main_lines[line_no]
+            
+            # Determine the number of lines in the fix
+            num_fix_lines = len(fix.get('lines', [])) if 'lines' in fix else 1
+            
+            # Update mapping before applying the fix
+            mapper.apply_fix_and_update_mapping(
+                line_no, orig_start_col, orig_end_col, 
+                fix['action'], num_fix_lines
+            )
+            
+            # Apply the actual fix to the file
+            lines = apply_fix_with_mapping(lines, fix, line_no, mapper, original_main_lines)
+            target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            
+            # Debug output
             if fix.get('action') in ['delete', 'smart_delete']:
                 if debug: print(f"🗑️  Applied deletion at line {line_no}")
             else:
@@ -4352,7 +4491,7 @@ call_depth = 0
 call_depth_lock = threading.Lock()
 
 # Configuration for maximum allowed exec depth
-MAX_EXEC_DEPTH = 3  # You can change this value
+MAX_EXEC_DEPTH = 5  # You can change this value
 
 def contains_exec_comprehensive(file_path):
     """
@@ -4544,7 +4683,7 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
         normalized_file = os.path.normpath(os.path.abspath(file))
         
         # If this is not the first call (depth > 1), it means a file is calling other files
-        if current_depth > 3:
+        if current_depth > 5:
             print(f"Skipping {file} - called from another file being analyzed")
             return []
         
@@ -4865,7 +5004,6 @@ def get_function_smells(exe, executables_dict_exe):
     
 
     # Start thread for map_lines_of_code
-    #main_map = threading.Thread(target=wrapper, args=(map_lines_of_code, result, 'map_lines_of_code', executables_dict_exe, function, exe), kwargs={'similarity_threshold': 0.5})
     main_map = threading.Thread(target=wrapper, args=(map_lines_of_code, result, 'map_lines_of_code', executables_dict_exe, function, exe),)
     main_map.start()
     threads.append(main_map)
@@ -4908,9 +5046,9 @@ def get_function_smells(exe, executables_dict_exe):
 
     
     
-    auto_fix_map_var = results[exe].get("auto_fix_with_mapping", {})
-    map_lines_simple_var = results[exe].get("map_lines_simple", {})
-    map_lines_of_code_var = results[exe].get("map_lines_of_code", {})
+    auto_fix_map_var = results[exe].get("auto_fix_with_mapping", {})    # From the generated file, maps the differences of the lines before and after the fix
+    map_lines_simple_var = results[exe].get("map_lines_simple", {})     # Maps lines before the main
+    map_lines_of_code_var = results[exe].get("map_lines_of_code", {})   # Maps the main lines
 
     print(f"Smell detection in function executable file: {exe}")
     smells = detect_smells_from_file(exe)
@@ -4925,78 +5063,60 @@ def get_function_smells(exe, executables_dict_exe):
 
         if smell.type in ["CG", "LPQ"]: pass
 
-        """
-        if smell.type in ["CG", "LPQ"]:
-
-
-            row = smell.row
-
-            if row is None:
-                continue  # Skip if the smell doesn't have a row
-            
-
-            matched_tuple = None
-
-            # Search for the tuple in auto_fix_with_mapping whose value list includes this row
-            for tuple_str, line_list in auto_fix_map_var.items():
-                if isinstance(line_list, list) and row in line_list:
-                    matched_tuple = tuple_str
-                    break
-
-            if matched_tuple is None:
-                continue  # No mapping found for this smell
-
-            
-            # Convert tuple string (e.g., "(3, 0, 77)") to actual tuple
-            parsed_tuple = matched_tuple
-            if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
-                continue
-
-            generated_line = parsed_tuple[0]
-
-            # Look up original line from map_lines_simple
-            original_line = map_lines_simple_var.get(generated_line)
-
-            # Attach all this info to the smell object
-            smell.set_row(original_line)
-            smell.set_column_start(None)
-            smell.set_column_end(None)
-        """
-
 
         if smell.type in  ["IM", "IQ", "IdQ"]:
 
-            row = smell.row
+                row = smell.row
 
-            if row is None:
-                continue  # Skip if the smell doesn't have a row
+                if row is None:
+                    continue  # Skip if the smell doesn't have a row
 
-            matched_tuple = None
+                matched_tuple = None
 
-            # Search for the tuple in auto_fix_with_mapping whose value list includes this row
-            for tuple_str, line_list in auto_fix_map_var.items():
-                if isinstance(line_list, list) and row in line_list:
-                    matched_tuple = tuple_str
-                    break
+                # Search for the tuple in auto_fix_with_mapping whose value list includes this row
+                for tuple_str, line_list in auto_fix_map_var.items():
+                    if isinstance(line_list, list) and row in line_list:
+                        matched_tuple = tuple_str
+                        break
+                
+                alternative=False
 
-            if matched_tuple is None:
-                continue  # No mapping found for this smell
+                if matched_tuple is not None:
+                    #continue  # No mapping found for this smell
+                    alternative=True
 
-            
-            # Convert tuple string (e.g., "(3, 0, 77)") to actual tuple
-            parsed_tuple = matched_tuple
-            if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
-                continue
 
-            generated_line = parsed_tuple[0]
 
-            # Look up original line from map_lines_simple
-            original_line = map_lines_of_code_var.get(generated_line)
+                if alternative==False:
+                    # Convert tuple string (e.g., "(3, 0, 77)") to actual tuple
+                    parsed_tuple = matched_tuple
 
-            # Attach all this info to the smell object
-            smell.set_row(original_line)
-            smell.set_column_start(None)
-            smell.set_column_end(None)
+                    if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
+                        #continue
+                        alternative=True
+
+                    if alternative==False:
+                        generated_line = parsed_tuple[0]
+
+                        # Look up original line from map_lines_simple
+                        original_line = map_lines_of_code_var.get(generated_line)
+
+                        # Attach all this info to the smell object
+                        smell.set_row(original_line)
+                        smell.set_column_start(None)
+                        smell.set_column_end(None)
+
+
+                if alternative==True:
+                    original_line = map_lines_of_code_var.get(row)
+
+                    # Attach all this info to the smell object
+                    smell.set_row(original_line)
+                    smell.set_column_start(None)
+                    smell.set_column_end(None)
+
+
+
 
         if smell.type=="LC": pass
 
@@ -5029,19 +5149,29 @@ def get_function_smells(exe, executables_dict_exe):
                         if isinstance(line_list, list) and row in line_list:
                             matched_tuple = tuple_str
                             break
+
+                    alternative=False    
                     
                     if matched_tuple is None:
-                        tuple_original_rows.append(None)  # No mapping found for this row
-                        continue
+                        #tuple_original_rows.append(None)  # No mapping found for this row
+                        #continue
+                        alternative=True
                     
-                    # The matched_tuple should already be a tuple, not a string
-                    parsed_tuple = matched_tuple
-                    
-                    generated_line = parsed_tuple[0]
-                    
-                    # Look up original line from map_lines_simple
-                    original_line = map_lines_of_code_var.get(generated_line)
-                    tuple_original_rows.append(original_line)
+
+                    if alternative==False:
+                        # The matched_tuple should already be a tuple, not a string
+                        parsed_tuple = matched_tuple
+                        
+                        generated_line = parsed_tuple[0]
+                        
+                        # Look up original line from map_lines_simple
+                        original_line = map_lines_of_code_var.get(generated_line)
+                        tuple_original_rows.append(original_line)
+
+                    if alternative==True:
+                        original_line = map_lines_of_code_var.get(row)
+                        tuple_original_rows.append(original_line)
+
                 
                 # Add the processed tuple to our results
                 original_rows.append(tuple(tuple_original_rows))
@@ -5056,11 +5186,15 @@ def get_function_smells(exe, executables_dict_exe):
             smell.set_column_start(None)
             smell.set_column_end(None)
 
+
+
+
             
 
         if smell.type=="NC":
             # Pre-build a reverse lookup dictionary for faster searching
             row_to_tuple_map = {}
+            
             for tuple_str, line_list in auto_fix_map_var.items():
                 if isinstance(line_list, list):
                     for line in line_list:
@@ -5074,19 +5208,29 @@ def get_function_smells(exe, executables_dict_exe):
                 # Fast lookup using pre-built dictionary
                 matched_tuple = row_to_tuple_map.get(row)
                 
+
+                alternative=False
                 if matched_tuple is None:
-                    return None
+                    #return None
+                    alternative=True
                 
-                # Convert tuple string to actual tuple
-                parsed_tuple = matched_tuple
-                if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
-                    return None
+                if alternative==False:
+                    # Convert tuple string to actual tuple
+                    parsed_tuple = matched_tuple
+                    if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
+                        return None
+                    
+                    generated_line = parsed_tuple[0]
+                    
+                    # Look up original line from map_lines_simple
+                    original_line = map_lines_of_code_var.get(generated_line)
+                    return original_line
                 
-                generated_line = parsed_tuple[0]
-                
-                # Look up original line from map_lines_simple
-                original_line = map_lines_of_code_var.get(generated_line)
-                return original_line
+                if alternative==True:
+                    original_line = map_lines_of_code_var.get(row)
+                    return original_line
+
+
 
             # Track if we found any valid mappings
             found_mappings = False
@@ -5210,7 +5354,9 @@ def autofix_map_detect( file_path:str ):
     output_directory = "generated_executables"
     executables = generator.analyze_and_generate_all_executables(file, output_directory)
 
-    print(f"\nGenerated {len(executables)} executable files in '{output_directory}/' directory")
+    #return 
+
+    print(f"\nGenerated {len(executables)} executable files in '{output_directory}/' directory for {file_path} file")
 
     # Map each generated executable to its original file
     for exe in executables:
@@ -5231,9 +5377,11 @@ def autofix_map_detect( file_path:str ):
 
     
     def process_exe(exe):
-        result = get_function_smells(exe, executables_dict[exe])
-        with lock:
-            smells_dict[exe] = result
+        try:
+            result = get_function_smells(exe, executables_dict[exe])
+            with lock:
+                smells_dict[exe] = result
+        except: pass
 
     for exe in executables_dict:
         
@@ -5249,6 +5397,21 @@ def autofix_map_detect( file_path:str ):
         t.join()
 
 
+    """
+    print()
+    print()
+    print()
+
+
+    for exe in smells_dict:
+        print(exe)
+        for smell in smells_dict[exe]:
+            print(smell.as_dict())
+        print()
+    
+
+    print("Qui")
+    """
 
     file_smells=[]
 
@@ -5290,7 +5453,7 @@ def autofix_map_detect( file_path:str ):
     for ex in executables_dict:
         folder_path = os.path.dirname(ex)
         clear_folder(folder_path)
-        break 
+        break
 
     return file_smells
     
@@ -5376,20 +5539,25 @@ def autofix_map_detect( file_path:str ):
 
 
 
-if __name__ == "__main__":
+"""if __name__ == "__main__":
     # python -m test.StaticMappedDetection
 
 
-    """map = fix_map(
-        "C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/mpqp/mpqp/core/circuit.py",
-        "C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/generated_executables/executable_initializer.py",
-        similarity_threshold=0.5
-    )"""
 
-
-    smells=autofix_map_detect("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/qiskit_algorithms/amplitude_estimators/ae.py")
+    smells=autofix_map_detect("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/qiskit_algorithms/gradients/utils.py")
     for smell in smells:
         print(smell.as_dict())
+"""
 
 
 
+"""
+Aggiungere in ROC la possibilità di non avere il collegamento diretto con funzioni.
+Se una funzione è richiamta, la detection deve essere fatta sulla chiamata della funzione, non sulla funzione stessa
+Potenzialmente:
+    - vedere se è rpesente lo smell
+    - vedere se è una funzione
+        - vedere la funzione stessa
+        - se è presente uno smell nella funzione, puntare alle righe nella funzione
+        - altrimenti puntare alla chiamata a funzione
+"""
