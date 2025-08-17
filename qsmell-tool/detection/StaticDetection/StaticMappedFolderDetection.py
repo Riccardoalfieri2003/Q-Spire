@@ -27,7 +27,7 @@ import os
 import csv
 
 
-def save_output(output_saving_folder, smells):
+def save_output(output_saving_folder, smells, folder):
     os.makedirs(output_saving_folder, exist_ok=True)
 
     for file_path, smell_list in smells.items():
@@ -36,7 +36,7 @@ def save_output(output_saving_folder, smells):
             continue
 
         # Encode full path into a valid filename
-        safe_name = file_path.replace(":", "_").replace("\\", "_").replace("/", "_")
+        safe_name = file_path.replace(folder,"").replace(":", "_").replace("\\", "_").replace("/", "_")
         output_file_path = os.path.join(output_saving_folder, f"{safe_name}.csv")
 
         # Convert all smells to dict form
@@ -91,5 +91,5 @@ if __name__ == "__main__":
     """
     
         
-    save_output(output_saving_folder, smells)
+    save_output(output_saving_folder, smells, folder)
     print("Analysis completed")
