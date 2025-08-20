@@ -1,0 +1,2 @@
+loss,perplexity,epoch_time_sec,vocab,embed_dim,heads,hidden_dim,blocks,lr,threads,advanced_ansatz,data_reuploading,subbit,entropy_factor,oov_rate,total_tokens,distinct1_ratio,distinct2_ratio,grad_min,grad_max,grad_median,grad_mean,grad_std,grad_samples
+4.601739,63.4945,71726.67,100,4,2,4,4,0.5,18,True,True,True,0.0,0.27,1230,0.32,0.74,0.0,0.015685,0.00364,0.00474,0.0034,126

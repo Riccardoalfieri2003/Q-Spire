@@ -13,7 +13,9 @@
   "activationEvents": [
     "onStartupFinished",
     "onCommand:qsmell-tool.helloWorld",
-    "onCommand:mytool.analyzeFile"
+    "onCommand:mytool.analyzeFile",
+    "onCommand:mytool.showGui",
+    "onCommand:mytool.toggleGui"
   ],
 
   "main": "./out/extension.js",

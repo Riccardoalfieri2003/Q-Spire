@@ -1,0 +1,1422 @@
+{
+  "manual": [],
+  "auto_commits": [
+    {
+      "date": "2024-12-08",
+      "sha": "011759e",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "0cd3063",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "27c1bbe",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "4023f55",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "4e1d6ed",
+      "subject": "Delete docs"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "5c61049",
+      "subject": "Create Qelm.py"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "5f9dc0f",
+      "subject": "Rename QELM_Diagram.png.png to QELM_Diagram.png"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "7ab6ef3",
+      "subject": "Initial commit"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "9b4f058",
+      "subject": "Create requirements.txt"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "9b5b846",
+      "subject": "Update Qelm2.py"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "9d16a13",
+      "subject": "Create tst"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "a0dfd8d",
+      "subject": "Create docs"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "bca7337",
+      "subject": "Rename Qelm.py to Qelm2.py"
+    },
+    {
+      "date": "2024-12-08",
+      "sha": "da6059b",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-09",
+      "sha": "550cd3b",
+      "subject": "Create chat.py"
+    },
+    {
+      "date": "2024-12-09",
+      "sha": "58816e4",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-09",
+      "sha": "64e8e70",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-09",
+      "sha": "77ddd32",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2024-12-09",
+      "sha": "89ba166",
+      "subject": "Update Qelm2.py"
+    },
+    {
+      "date": "2024-12-09",
+      "sha": "d9a8fc9",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-09",
+      "sha": "ee92ac9",
+      "subject": "Create python-app.yml"
+    },
+    {
+      "date": "2024-12-09",
+      "sha": "fd28896",
+      "subject": "Create gen.py"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "15e63ef",
+      "subject": "Update chat.py"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "17cfae7",
+      "subject": "Rename Readme to Readme.md"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "2ba5c56",
+      "subject": "Create QelmGUI.py"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "58cde66",
+      "subject": "Create Neuron.py"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "655fd91",
+      "subject": "Create GUI Trainer"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "77fdda9",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "7fa43a5",
+      "subject": "Update gen.py"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "801b716",
+      "subject": "Create Readme"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "952d66d",
+      "subject": "Update chat.py"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "aa417fd",
+      "subject": "Update Neuron.py"
+    },
+    {
+      "date": "2024-12-10",
+      "sha": "b42278f",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-11",
+      "sha": "0ad3e81",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-11",
+      "sha": "68fd945",
+      "subject": "Qelm GUI - With threading selection"
+    },
+    {
+      "date": "2024-12-11",
+      "sha": "7b73d48",
+      "subject": "Multi-Threading CPU/GPU"
+    },
+    {
+      "date": "2024-12-11",
+      "sha": "918f9f7",
+      "subject": "Single Thread - Use GUI for Multi"
+    },
+    {
+      "date": "2024-12-12",
+      "sha": "178d24b",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-12",
+      "sha": "7f12cf8",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-13",
+      "sha": "8cc232d",
+      "subject": "Delete GUI Trainer"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "0a0d681",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "0a33fe5",
+      "subject": "Delete docs/images/tst"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "360b627",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "414abab",
+      "subject": "Rename QELM_Design_5.jpg to QELM_Diagram.jpg"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "6be541e",
+      "subject": "New Q image"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "7157502",
+      "subject": "Delete Neural/Readme.md"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "8266a53",
+      "subject": "Create Readme.md"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "8681cdc",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "cc49187",
+      "subject": "Rename QELM_Diagram.png to QELM_Diagramold.png"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "e991219",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2024-12-15",
+      "sha": "ed3514d",
+      "subject": "Delete docs/images/QELM_Diagram.jpg"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "0ac233b",
+      "subject": "Update/Upgrade QelmGUI.py"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "1ab25e3",
+      "subject": "Create Readme.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "21fa207",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "420c2a1",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "4283eaa",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "51831b3",
+      "subject": "Delete Neural/Readme.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "6b40eb0",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "7b79a7c",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "855d333",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "961cd46",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "a0b482b",
+      "subject": "Update chat.py"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "b8862f1",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "bcd58c8",
+      "subject": "Update Neuron.py"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "d5a5930",
+      "subject": "Rename qelm.png to Qelm.png"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "db67690",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-16",
+      "sha": "f682b44",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2024-12-17",
+      "sha": "bb772fc",
+      "subject": "Create readme.md"
+    },
+    {
+      "date": "2024-12-19",
+      "sha": "7ea729f",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-19",
+      "sha": "881a65e",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-19",
+      "sha": "f6fdf0f",
+      "subject": "Update Neuron.py"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "07f09ef",
+      "subject": "Create requirements.txt"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "1c7cb96",
+      "subject": "Update chat.py"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "3cf71e5",
+      "subject": "Update requirements.txt"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "5a4c477",
+      "subject": "Update Qelm-Quantum.py"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "7e8dbe4",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "8bf306f",
+      "subject": "Create requirements.txt"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "c5aebf3",
+      "subject": "Create Qelm-Quantum.py"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "dabcacf",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "f29ccf3",
+      "subject": "Create Readme.md"
+    },
+    {
+      "date": "2024-12-21",
+      "sha": "febf3d9",
+      "subject": "Update Neuron.py"
+    },
+    {
+      "date": "2024-12-26",
+      "sha": "46a04e0",
+      "subject": "Update QelmGUI.py - Bug fix V2 - Alpha"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "0a8cfff",
+      "subject": "Delete docs/images/Qelm.png"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "0fd0670",
+      "subject": "Create CODE_OF_CONDUCT.md"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "42f1739",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "44ea1b8",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "4bab0c0",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "6aace49",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "7168733",
+      "subject": "Rename chat.py to QELMChatUI.py"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "7583906",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "b1e7672",
+      "subject": "Update QelmGUI.py V3 - Alpha"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "c3c8523",
+      "subject": "Update chat.py"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "e658865",
+      "subject": "Update chat.py - New UI"
+    },
+    {
+      "date": "2024-12-28",
+      "sha": "eae3b2a",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2024-12-29",
+      "sha": "16e9966",
+      "subject": "Create FUNDING.yml"
+    },
+    {
+      "date": "2024-12-29",
+      "sha": "2cdd794",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2024-12-29",
+      "sha": "2e11b06",
+      "subject": "Create tst"
+    },
+    {
+      "date": "2024-12-29",
+      "sha": "4728fd0",
+      "subject": "Rename qelm.qelm to Ex.qelm"
+    },
+    {
+      "date": "2024-12-30",
+      "sha": "2a1b197",
+      "subject": "Delete QLM/Example/tst"
+    },
+    {
+      "date": "2025-01-01",
+      "sha": "0c6587a",
+      "subject": "Update Neuron.py"
+    },
+    {
+      "date": "2025-01-01",
+      "sha": "14d576a",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2025-01-01",
+      "sha": "32c37be",
+      "subject": "Create OneRun.txt"
+    },
+    {
+      "date": "2025-01-01",
+      "sha": "424986f",
+      "subject": "Update gen.py - GUI added"
+    },
+    {
+      "date": "2025-01-01",
+      "sha": "b2e8b3f",
+      "subject": "Rename Ex.qelm to Example.qelm"
+    },
+    {
+      "date": "2025-01-04",
+      "sha": "8581a1c",
+      "subject": "Create Bypassing Holevo.doc"
+    },
+    {
+      "date": "2025-01-05",
+      "sha": "5402299",
+      "subject": "Rename Bypassing Holevo.doc to Bypassing Holevo.md"
+    },
+    {
+      "date": "2025-01-06",
+      "sha": "2cf7d55",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-01-06",
+      "sha": "8d808bd",
+      "subject": "Update QelmGUI.py"
+    },
+    {
+      "date": "2025-01-07",
+      "sha": "1dd745a",
+      "subject": "Update python-app.yml"
+    },
+    {
+      "date": "2025-01-07",
+      "sha": "24dc694",
+      "subject": "Update python-app.yml"
+    },
+    {
+      "date": "2025-01-07",
+      "sha": "3732e57",
+      "subject": "Update python-app.yml"
+    },
+    {
+      "date": "2025-01-07",
+      "sha": "6c5282f",
+      "subject": "Update Qelm-Quantum.py"
+    },
+    {
+      "date": "2025-01-07",
+      "sha": "a95a585",
+      "subject": "Update python-app.yml"
+    },
+    {
+      "date": "2025-01-07",
+      "sha": "ae7e410",
+      "subject": "Update python-app.yml"
+    },
+    {
+      "date": "2025-01-07",
+      "sha": "c44fcc3",
+      "subject": "Update python-app.yml"
+    },
+    {
+      "date": "2025-01-07",
+      "sha": "e742b23",
+      "subject": "Update python-app.yml"
+    },
+    {
+      "date": "2025-01-27",
+      "sha": "09690ea",
+      "subject": "Update QELMChatUI.py"
+    },
+    {
+      "date": "2025-01-28",
+      "sha": "e26f693",
+      "subject": "Update gen.py"
+    },
+    {
+      "date": "2025-01-28",
+      "sha": "f893b91",
+      "subject": "Update QelmGUI.py"
+    },
+    {
+      "date": "2025-02-02",
+      "sha": "3ca6dac",
+      "subject": "Create Qelm - Theoretical (More advanced)"
+    },
+    {
+      "date": "2025-02-11",
+      "sha": "43bc702",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-02-14",
+      "sha": "54a10d3",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-01",
+      "sha": "2399738",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-03-01",
+      "sha": "97293b0",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-03",
+      "sha": "c3f6018",
+      "subject": "Update QELMChatUI.py"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "00a5eff",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "106df5f",
+      "subject": "Delete Datasets/f.md"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "1343c76",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "13f3fcd",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "1b747db",
+      "subject": "Delete docs/images/quantum.png"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "34002ec",
+      "subject": "Create f.md"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "555c01c",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "55f4321",
+      "subject": "Update QELMChatUI.py"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "a3aa663",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "ad87872",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "ede4a38",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-03-06",
+      "sha": "fe84bae",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-03-11",
+      "sha": "3ab7a25",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-03-11",
+      "sha": "b357942",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-15",
+      "sha": "cda2745",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-16",
+      "sha": "1361bbe",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-16",
+      "sha": "62518f6",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "0a46072",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "0dcb4df",
+      "subject": "Bump qiskit from 1.3.0 to 1.4.2"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "11aff3d",
+      "subject": "Merge pull request #7 from R-D-BioTech-Alaska/dependabot/pip/Neural/qiskit-1.4.2"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "2d9078f",
+      "subject": "Create Readme.md"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "386aa10",
+      "subject": "Delete QLM/Example/10000.qelm"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "69b85c6",
+      "subject": "Update python-app.yml"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "6e7b63e",
+      "subject": "Rename chat.png to chatold.png"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "8d16405",
+      "subject": "Merge pull request #9 from R-D-BioTech-Alaska/dependabot/pip/qiskit-1.4.2"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "93110f6",
+      "subject": "Bump qiskit from 1.3.0 to 1.4.2 in /Quantum"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "9df7546",
+      "subject": "Delete QLM/Example/10000_tokens.json"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "a25c198",
+      "subject": "Merge pull request #8 from R-D-BioTech-Alaska/dependabot/pip/Quantum/qiskit-1.4.2"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "a3ed4ea",
+      "subject": "Delete QLM/Example/Example.qelm"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "a6a554a",
+      "subject": "Bump qiskit from 1.3.0 to 1.4.2 in /Neural"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "af970f4",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "d3db5d4",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "f3e1b0e",
+      "subject": "Delete QLM/Example/qelm_token_map.json"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "f51f4dc",
+      "subject": "Moved gen.py to Outdated/gen.py"
+    },
+    {
+      "date": "2025-03-17",
+      "sha": "f9837d3",
+      "subject": "Moved QelmGUI.py to Outdated/QelmGUI.py"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "40e19ea",
+      "subject": "Update issue templates"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "4e6a3a8",
+      "subject": "Update LICENSE"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "510dca0",
+      "subject": "Update LICENSE"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "5ce2e83",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "75c0645",
+      "subject": "Update LICENSE"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "808fdcb",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "89e1736",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "99d36f4",
+      "subject": "Update LICENSE"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "9e20bd0",
+      "subject": "Moved Qelm2.py to Outdated/Qelm2.py"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "9e6e627",
+      "subject": "Rename Bypassing Holevo.md to Bypassing Holevo.Doc"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "a958d58",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "ac62316",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "b4a436b",
+      "subject": "Create readme.md"
+    },
+    {
+      "date": "2025-03-18",
+      "sha": "bc11b70",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-19",
+      "sha": "8484285",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-21",
+      "sha": "442f2fb",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-03-22",
+      "sha": "1c6e7f4",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2025-03-22",
+      "sha": "d09a77a",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-27",
+      "sha": "a5325f3",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-31",
+      "sha": "0569ccd",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-31",
+      "sha": "3107ce3",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-03-31",
+      "sha": "790dc0b",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-03-31",
+      "sha": "8a4982b",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-04-02",
+      "sha": "5ad6fa2",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-04-14",
+      "sha": "2ec6a98",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-04-14",
+      "sha": "cb3e38b",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-05-04",
+      "sha": "6917087",
+      "subject": "Update Qelm-Quantum.py"
+    },
+    {
+      "date": "2025-05-04",
+      "sha": "9d738bc",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-05-15",
+      "sha": "599eb80",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-05-15",
+      "sha": "8b691ab",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-05-15",
+      "sha": "af02751",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2025-06-14",
+      "sha": "3abfe89",
+      "subject": "Delete .github/workflows/ibm.yml"
+    },
+    {
+      "date": "2025-06-14",
+      "sha": "44106ef",
+      "subject": "Create ibm.yml"
+    },
+    {
+      "date": "2025-06-14",
+      "sha": "ca3e440",
+      "subject": "Update QELMChatUI.py"
+    },
+    {
+      "date": "2025-07-07",
+      "sha": "10216a7",
+      "subject": "Create pyproject.toml"
+    },
+    {
+      "date": "2025-07-07",
+      "sha": "14f3037",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-07",
+      "sha": "76eb2fd",
+      "subject": "Create __init__.py"
+    },
+    {
+      "date": "2025-07-07",
+      "sha": "966ddd6",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-07",
+      "sha": "b0b3906",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-07",
+      "sha": "ff66dee",
+      "subject": "Limit packaging to qelm package; fix license field"
+    },
+    {
+      "date": "2025-07-13",
+      "sha": "13d0df6",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-07-13",
+      "sha": "5c8df4b",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-13",
+      "sha": "7ceaf61",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-13",
+      "sha": "bcb09a1",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-23",
+      "sha": "25394b2",
+      "subject": "Create release.yml"
+    },
+    {
+      "date": "2025-07-23",
+      "sha": "5869463",
+      "subject": "Update release.yml"
+    },
+    {
+      "date": "2025-07-23",
+      "sha": "c2dcf2a",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-25",
+      "sha": "006122c",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-25",
+      "sha": "04f4102",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-07-25",
+      "sha": "4ac5ffc",
+      "subject": "Create 100science.csv"
+    },
+    {
+      "date": "2025-07-25",
+      "sha": "6ae8b24",
+      "subject": "Update QELMChatUI.py"
+    },
+    {
+      "date": "2025-07-25",
+      "sha": "879dc09",
+      "subject": "Update release.yml"
+    },
+    {
+      "date": "2025-07-25",
+      "sha": "8bc33be",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-07-25",
+      "sha": "c4bbbd2",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-25",
+      "sha": "c8dc2b7",
+      "subject": "Update release.yml"
+    },
+    {
+      "date": "2025-07-25",
+      "sha": "dd1723a",
+      "subject": "Delete Benchmark/100science.csv"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "0f0b0c8",
+      "subject": "Update requirements.txt"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "16a69d6",
+      "subject": "Update requirements.txt"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "264234c",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "301a554",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "30b7e6d",
+      "subject": "Create Quantum.txt"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "3629905",
+      "subject": "Update requirements.txt"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "3dd1bc9",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "50dccb6",
+      "subject": "Delete docs/images/chat.png"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "6a6b6ea",
+      "subject": "Rename chat.png to chatold3.png"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "6c104ef",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "76e3886",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "90ce08b",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "ac30228",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "b462a4a",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-07-26",
+      "sha": "b859343",
+      "subject": "Rename qelmtrainer.png to qelmtrainerold.png"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "02bb92f",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "03bb4f0",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "117b872",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "25752ec",
+      "subject": "Add files via upload"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "58f8dd1",
+      "subject": "Create requirements.txt"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "6a44cff",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "757574e",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "79be75e",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "88756cb",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "964aaf2",
+      "subject": "Create HolevosAlternative.doc"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "a3f8534",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "a77f45a",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "b346c27",
+      "subject": "Rename publish.yaml to publish.yml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "ba6581e",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "cf1f3c0",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "da7212a",
+      "subject": "Create publish.yaml"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "eddbd0a",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "f8b6404",
+      "subject": "Update Readme.md"
+    },
+    {
+      "date": "2025-07-27",
+      "sha": "fc9223e",
+      "subject": "Update pyproject.toml"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "13708ac",
+      "subject": "Create STATUS_MILESTONES.json"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "1db5b52",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "2530f08",
+      "subject": "Update update_status.py"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "27ff9d2",
+      "subject": "Update STATUS_MILESTONES.json"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "4bc5952",
+      "subject": "Update README.md"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "6e6695e",
+      "subject": "Create STATUS.md"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "7d46fe3",
+      "subject": "Create update_status.py"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "913425e",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "a7bdc26",
+      "subject": "Create days_active.json"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "b3e2b75",
+      "subject": "Create daily-status.yml"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "e37a8c8",
+      "subject": "Create update_milestones.py"
+    },
+    {
+      "date": "2025-07-28",
+      "sha": "fd750ff",
+      "subject": "Update QelmT.py"
+    },
+    {
+      "date": "2025-07-29",
+      "sha": "422d82e",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-29",
+      "sha": "7d5beb4",
+      "subject": "chore(status): # QELM — Day 244"
+    },
+    {
+      "date": "2025-07-30",
+      "sha": "1763f69",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "1a1c10c",
+      "subject": "Delete STATUS.md"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "27643b1",
+      "subject": "Delete STATUS_MILESTONES.json"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "36ac00d",
+      "subject": "Update STATUS.md"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "37bfa46",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "3a2d52b",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "55f0b45",
+      "subject": "Create STATUS.md"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "57c2946",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "6ecbc60",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "8b00a3c",
+      "subject": "Update STATUS_MILESTONES.json"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "9195806",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "942af14",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "b4da8cb",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "cba8d82",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "d32af9b",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "dbc5852",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "eaa183d",
+      "subject": "Create STATUS_MILESTONES.json"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "ec08770",
+      "subject": "Update daily-status.yml"
+    },
+    {
+      "date": "2025-07-31",
+      "sha": "f03eb4a",
+      "subject": "Update daily-status.yml"
+    }
+  ],
+  "last_commit_sha": "cba8d82cf746bd18b16f83ed1060359b57c17721",
+  "last_checked": "2025-08-01T02:16:27Z"
+}

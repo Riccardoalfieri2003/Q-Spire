@@ -1,10 +1,10 @@
 import csv
+from datetime import datetime
 from pathlib import Path
 import shutil
 import threading
 import os
 from detection.StaticDetection.StaticCircuit import FunctionExecutionGenerator
-#from test.StaticFileDetection import detect_smells_from_file
 #from test.GeneralFolderTest import save_output
 
 
@@ -3168,9 +3168,19 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
             
             # Generic attribute fix - works for any object and any attribute
             else:
+
                 # Determine if we need a callable or simple value based on context
                 is_callable = '(' in line_text[line_text.find(missing_attr):line_text.find(missing_attr) + 50] if missing_attr in line_text else False
-                mock_value = "lambda *args, **kwargs: None" if is_callable else "None"
+                
+                # Get smart mock value using dynamic detection
+                mock_result = get_smart_mock_value(missing_attr, is_callable)
+                mock_value = mock_result  # This will be the lambda or "1"
+
+                """
+                # Determine if we need a callable or simple value based on context
+                is_callable = '(' in line_text[line_text.find(missing_attr):line_text.find(missing_attr) + 50] if missing_attr in line_text else False
+                #mock_value = "lambda *args, **kwargs: None" if is_callable else "None"
+                mock_value = "lambda *args, **kwargs: None" if is_callable else "1"
                 
                 # Split the object path to get base object and attribute chain
                 path_parts = obj_path.split('.')
@@ -3185,6 +3195,52 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
                         f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
                         f"{indent}    setattr({obj_path}, '{missing_attr}', {mock_value})",
                     ]}
+                """
+
+               
+                
+                # Split the object path to get base object and attribute chain
+                path_parts = obj_path.split('.')
+                base_obj = path_parts[0]
+                
+                # Handle dynamic type redefinition
+                if mock_result.startswith('REDEFINE_AS_'):
+                    # Extract the detected type info
+                    detected_type, sample_value, import_stmt = find_method_in_common_types(missing_attr)
+                    
+                    fix_lines = [
+                        f"{indent}# auto-fix: redefine {base_obj} as {detected_type} for attribute {missing_attr}",
+                    ]
+                    
+                    # Add import if needed
+                    if import_stmt:
+                        fix_lines.append(f"{indent}{import_stmt}")
+                    
+                    fix_lines.extend([
+                        f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
+                        f"{indent}    {base_obj} = {sample_value}",
+                    ])
+                    
+                    return {'action': 'insert_at_position',
+                        'target_line': insertion_idx,
+                        'lines': fix_lines}
+                
+                if len(path_parts) == 1:
+                    # Simple case: obj.attr - create a mock object with the specific attribute
+                    mock_attr_value = "lambda *args, **kwargs: None" if is_callable else "None"
+                    
+                    return {'action': 'insert_at_position',
+                        'target_line': insertion_idx,
+                        'lines': [
+                            f"{indent}# auto-fix: redefine {base_obj} as mock object with attribute '{missing_attr}'",
+                            f"{indent}from unittest.mock import Mock",
+                            f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
+                            f"{indent}    _mock = Mock()",
+                            f"{indent}    _mock.{missing_attr} = {mock_attr_value}",
+                            f"{indent}    {base_obj} = _mock",
+                        ]}
+
+
                 else:
                     # Complex case: obj.subobj.attr
                     parent_path = '.'.join(path_parts[:-1])
@@ -3245,7 +3301,7 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
                 print(f"ERROR: Required library '{module_name}' is not installed.")
                 print(f"Please install it using: pip install {module_name}")
                 print("Stopping fix process...")
-                exit(1)
+                sys.exit(1)
             
             # If import is successful, continue without adding any fix
             return None  # or however you indicate "no action needed"
@@ -3498,7 +3554,6 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
     # Use smart deletion for unhandled errors
     idx = (line_no - 1) if line_no and line_no > 0 else 0
     if idx >= len(lines):
-        print("Ci troviamo qui")
         return {'action': 'stop', 'error_type': err_type, 'error_msg': 'Line index out of range'}
 
     # Use smart deletion for multi-line statements  
@@ -3513,6 +3568,270 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
         'lines_deleted': lines_deleted
     }
     
+
+def get_type_for_attribute(missing_attr, is_callable):
+    """
+    Determine the appropriate type/value based on the missing attribute.
+    Returns a tuple of (type_name, mock_value, import_statement)
+    """
+    
+    # String methods
+    string_methods = {
+        'split', 'strip', 'replace', 'find', 'index', 'startswith', 'endswith',
+        'upper', 'lower', 'capitalize', 'join', 'format', 'encode', 'decode',
+        'isdigit', 'isalpha', 'isalnum', 'isspace', 'count', 'rfind', 'rindex',
+        'lstrip', 'rstrip', 'center', 'ljust', 'rjust', 'zfill', 'expandtabs',
+        'translate', 'maketrans', 'partition', 'rpartition', 'splitlines'
+    }
+    
+    # List methods
+    list_methods = {
+        'append', 'extend', 'insert', 'remove', 'pop', 'clear', 'index',
+        'count', 'sort', 'reverse', 'copy'
+    }
+    
+    # Dict methods
+    dict_methods = {
+        'keys', 'values', 'items', 'get', 'pop', 'popitem', 'clear',
+        'update', 'setdefault', 'copy', 'fromkeys'
+    }
+    
+    # File-like object methods
+    file_methods = {
+        'read', 'write', 'readline', 'readlines', 'writelines', 'seek',
+        'tell', 'flush', 'close', 'fileno', 'isatty', 'readable', 'writable'
+    }
+    
+    # Datetime methods
+    datetime_methods = {
+        'strftime', 'strptime', 'date', 'time', 'replace', 'isoformat',
+        'weekday', 'isoweekday', 'isocalendar', 'timetuple', 'utctimetuple'
+    }
+    
+    # Path-like methods (pathlib or os.path)
+    path_methods = {
+        'exists', 'is_file', 'is_dir', 'resolve', 'absolute', 'parent',
+        'name', 'suffix', 'stem', 'parts', 'anchor', 'mkdir', 'rmdir',
+        'unlink', 'rename', 'replace', 'chmod', 'stat', 'lstat'
+    }
+    
+    # Regex match methods
+    regex_methods = {
+        'group', 'groups', 'groupdict', 'start', 'end', 'span'
+    }
+    
+    # Common object attributes (non-callable)
+    common_attributes = {
+        'length': ('list', '[]'),
+        'size': ('list', '[]'),
+        'shape': ('tuple', '(0, 0)'),  # numpy-like
+        'dtype': ('str', '"object"'),  # numpy-like
+        'text': ('str', '""'),
+        'content': ('str', '""'),
+        'data': ('dict', '{}'),
+        'value': ('int', '0'),
+        'name': ('str', '""'),
+        'id': ('int', '0'),
+        'type': ('str', '""'),
+        'status': ('str', '""'),
+        'code': ('int', '0'),
+        'message': ('str', '""'),
+        'args': ('tuple', '()'),
+        'kwargs': ('dict', '{}')
+    }
+    
+    # Determine the appropriate type
+    if missing_attr in string_methods:
+        return 'str', '""', None
+    elif missing_attr in list_methods:
+        return 'list', '[]', None
+    elif missing_attr in dict_methods:
+        return 'dict', '{}', None
+    elif missing_attr in file_methods:
+        return 'io.StringIO', 'io.StringIO()', 'import io'
+    elif missing_attr in datetime_methods:
+        return 'datetime.datetime', 'datetime.datetime.now()', 'import datetime'
+    elif missing_attr in path_methods:
+        return 'pathlib.Path', 'pathlib.Path(".")', 'import pathlib'
+    elif missing_attr in regex_methods:
+        return 'Mock', 'Mock()', 'from unittest.mock import Mock'
+    elif missing_attr in common_attributes:
+        attr_type, attr_value = common_attributes[missing_attr]
+        return attr_type, attr_value, None
+    else:
+        # Fallback: create a mock object that can handle any attribute/method call
+        if is_callable:
+            return 'Mock', 'Mock()', 'from unittest.mock import Mock'
+        else:
+            # For unknown non-callable attributes, try to infer from name
+            if missing_attr.endswith('_count') or missing_attr.endswith('_num'):
+                return 'int', '0', None
+            elif missing_attr.endswith('_name') or missing_attr.endswith('_text'):
+                return 'str', '""', None
+            elif missing_attr.endswith('_list') or missing_attr.endswith('_items'):
+                return 'list', '[]', None
+            elif missing_attr.endswith('_dict') or missing_attr.endswith('_map'):
+                return 'dict', '{}', None
+            else:
+                return 'Mock', 'Mock()', 'from unittest.mock import Mock'
+
+
+def get_smart_mock_value(missing_attr, is_callable):
+    """
+    Get appropriate mock value based on the missing attribute name.
+    """
+    # String methods
+    string_methods = {
+        'split', 'strip', 'replace', 'find', 'index', 'startswith', 'endswith',
+        'upper', 'lower', 'capitalize', 'join', 'format', 'encode', 'decode',
+        'isdigit', 'isalpha', 'isalnum', 'isspace', 'count', 'rfind', 'rindex'
+    }
+    
+    # List methods
+    list_methods = {
+        'append', 'extend', 'insert', 'remove', 'pop', 'clear', 'index',
+        'count', 'sort', 'reverse', 'copy'
+    }
+    
+    # Dict methods
+    dict_methods = {
+        'keys', 'values', 'items', 'get', 'pop', 'popitem', 'clear',
+        'update', 'setdefault', 'copy', 'fromkeys'
+    }
+    
+    # File-like object methods
+    file_methods = {
+        'read', 'write', 'readline', 'readlines', 'close', 'flush'
+    }
+    
+    # Check if we need to redefine the variable type
+    if missing_attr in string_methods:
+        return 'REDEFINE_AS_STRING'
+    elif missing_attr in list_methods:
+        return 'REDEFINE_AS_LIST'
+    elif missing_attr in dict_methods:
+        return 'REDEFINE_AS_DICT'
+    elif missing_attr in file_methods:
+        return 'REDEFINE_AS_FILE'
+    else:
+        # Fallback to original logic
+        return "lambda *args, **kwargs: None" if is_callable else "1"         
+
+
+
+import inspect
+
+def find_method_in_common_types(method_name):
+    """
+    Dynamically find which types have the given method by inspecting common types.
+    Returns the most appropriate type and a sample instance.
+    """
+    
+    # Common built-in types to check
+    builtin_types = [
+        (str, '""'),
+        (list, '[]'),
+        (dict, '{{}}'),
+        (set, 'set()'),
+        (tuple, '()'),
+        (int, '0'),
+        (float, '0.0'),
+        (bytes, 'b""'),
+    ]
+    
+    # Check built-in types first
+    for type_class, sample_value in builtin_types:
+        if hasattr(type_class, method_name):
+            return type_class.__name__, sample_value, None
+    
+    # Check for numpy-like methods
+    numpy_methods = {
+        'astype', 'reshape', 'flatten', 'ravel', 'transpose', 'sum', 'mean', 
+        'std', 'var', 'min', 'max', 'argmin', 'argmax', 'sort', 'argsort',
+        'clip', 'round', 'abs', 'sqrt', 'exp', 'log', 'sin', 'cos', 'tan'
+    }
+    
+    if method_name in numpy_methods:
+        # Try to import numpy and check if it's available
+        return 'numpy.ndarray', 'numpy.array([])', 'import numpy'
+    
+    # Check for pandas-like methods
+    pandas_methods = {
+        'head', 'tail', 'info', 'describe', 'value_counts', 'groupby',
+        'merge', 'join', 'concat', 'pivot', 'melt', 'drop', 'dropna',
+        'fillna', 'isnull', 'notnull', 'apply', 'map', 'filter'
+    }
+    
+    if method_name in pandas_methods:
+        return 'pandas.DataFrame', 'pandas.DataFrame()', 'import pandas'
+    
+    # Check for datetime methods
+    datetime_methods = {
+        'strftime', 'strptime', 'date', 'time', 'replace', 'isoformat',
+        'weekday', 'isoweekday', 'isocalendar', 'timetuple', 'utctimetuple'
+    }
+    
+    if method_name in datetime_methods:
+        return 'datetime.datetime', 'datetime.datetime.now()', 'import datetime'
+    
+    # Check for pathlib methods
+    pathlib_methods = {
+        'exists', 'is_file', 'is_dir', 'resolve', 'absolute', 'parent',
+        'name', 'suffix', 'stem', 'parts', 'anchor', 'mkdir', 'rmdir',
+        'unlink', 'rename', 'chmod', 'stat', 'lstat', 'glob', 'rglob'
+    }
+    
+    if method_name in pathlib_methods:
+        return 'pathlib.Path', 'pathlib.Path(".")', 'import pathlib'
+    
+    # Check for file-like methods
+    file_methods = {
+        'read', 'write', 'readline', 'readlines', 'writelines', 'seek',
+        'tell', 'flush', 'close', 'fileno', 'readable', 'writable'
+    }
+    
+    if method_name in file_methods:
+        return 'io.StringIO', 'io.StringIO()', 'import io'
+    
+    # Check for requests/http methods
+    requests_methods = {
+        'json', 'text', 'content', 'status_code', 'headers', 'cookies',
+        'raise_for_status', 'iter_content', 'iter_lines'
+    }
+    
+    if method_name in requests_methods:
+        return 'Mock', 'Mock()', 'from unittest.mock import Mock'
+    
+    # Advanced: Try to dynamically inspect available modules
+    try:
+        # Check if method exists in commonly imported modules
+        common_modules = ['numpy', 'pandas', 'datetime', 'pathlib', 'io', 'json', 're']
+        
+        for module_name in common_modules:
+            if module_name in sys.modules:
+                module = sys.modules[module_name]
+                # Look for classes in the module that have this method
+                for name in dir(module):
+                    try:
+                        obj = getattr(module, name)
+                        if inspect.isclass(obj) and hasattr(obj, method_name):
+                            # Found a class with this method
+                            if module_name == 'numpy':
+                                return 'numpy.ndarray', 'numpy.array([])', f'import {module_name}'
+                            elif module_name == 'pandas':
+                                return 'pandas.DataFrame', 'pandas.DataFrame()', f'import {module_name}'
+                            else:
+                                return f'{module_name}.{name}', f'{module_name}.{name}()', f'import {module_name}'
+                    except:
+                        continue
+    except:
+        pass
+    
+    # Final fallback - create a mock object
+    return 'Mock', 'Mock()', 'from unittest.mock import Mock'
+
+
+
 
 
 
@@ -4161,6 +4480,8 @@ def apply_fix_with_mapping(lines: List[str], fix: Dict, line_no: int,
     
     return lines
 
+
+latest_fix={}
 def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool, Optional[Dict]]:
     """
     Auto-fix a Python file and return success status with complete line mappings.
@@ -4175,7 +4496,11 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
         - mappings: Dictionary with structure {(original_line, start_col, end_col): [fixed_lines]}
                    None if the process failed
     """
-    max_iterations = 15
+
+    global latest_fix
+    if target_path not in latest_fix: latest_fix[target_path]=None
+
+    max_iterations = 10
     iteration = 0
     
     # Initialize the line mapper
@@ -4195,7 +4520,8 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
     
     while iteration < max_iterations:
         iteration += 1
-        if debug: print(f"Iteration {iteration}...")
+        if debug: 
+            print(f"Iteration {iteration}...")
         
         # Re-extract main lines if they were empty due to syntax errors
         if not original_main_lines:
@@ -4225,8 +4551,8 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
         proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
 
         if proc.returncode == 0:
+            print(f"Fixing completed on {target_path.name}: runs without errors after {iteration} iterations")
             if debug: 
-                print(f"\n🎉 SUCCESS! {target_path.name} runs without errors after {iteration} iterations!")
                 print(f"📈 Total line mappings created: {len(mapper.mappings)}")
                 print("=" * 60)
             return True, mapper.mappings
@@ -4259,6 +4585,7 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
                 print(f"❌ ERROR: Required library '{missing_module}' is not installed.")
                 print(f"📦 Please install it using: pip install {missing_module}")
                 print("🛑 Stopping auto-fix process...")
+                sys.exit(1)
                 return False, None
 
         # If not a syntax error, use the regular error handling
@@ -4283,6 +4610,15 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
         if debug: print(f"🔍 Error line content: {line_text.strip()}")
 
         fix = make_fix(err_type, err_msg, line_text, lines, line_no)
+
+        try:
+            if latest_fix[target_path] is not None and "lines" in fix.keys():
+                if fix["lines"]==latest_fix[target_path]["lines"]: 
+                    print(f"Fixing in loop: process stopped on file: {target_path}")
+                    return False, mapper.mappings  # Return partial mappings even on failure
+        except: pass
+            
+        latest_fix[target_path]=fix
 
         """
         if isinstance(fix, dict):
@@ -4341,6 +4677,7 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
         if debug: print("🔄 Retrying...\n")
     
     # If we reach here, we exceeded max iterations
+    print(f"Maximum iterations ({max_iterations}) reached on {target_path.name}.")
     if debug: 
         print(f"⚠️  Maximum iterations ({max_iterations}) reached.")
         print("🔧 Manual intervention may be required.")
@@ -5452,7 +5789,8 @@ def autofix_map_detect( file_path:str ):
     #CLEAR SECTION
     for ex in executables_dict:
         folder_path = os.path.dirname(ex)
-        clear_folder(folder_path)
+        try: clear_folder(folder_path)
+        except: pass
         break
 
     return file_smells
@@ -5532,19 +5870,58 @@ def autofix_map_detect( file_path:str ):
 
 
 
+def detect_smells_from_static_file(file):
+
+    
+    try:
+        smells=autofix_map_detect(file)
+        for smell in smells:
+            print(smell.as_dict())
+        
+        return smells
+    
+    except: return []
+    
+
+def detect_smells_from_static_file_forJS(file):
+
+    # Save original stdout
+    original_stdout = sys.stdout
+    
+    try:
+        # Redirect all prints to stderr for this function
+        sys.stdout = sys.stderr
+        
+        print(f"Static detection started at {datetime.now()}")
+        
+        
+        try:
+            smells = autofix_map_detect(file)
+            for smell in smells:
+                print(smell.as_dict())  # This will now go to stderr
+            
+            # Convert smells to JSON-serializable format
+            smells_dict = [smell.as_dict() for smell in smells]
+            return smells_dict
+            
+        except Exception as e:
+            print(f"Error in static detection: {str(e)}")
+            return []
+    
+    finally:
+        # Always restore original stdout
+        sys.stdout = original_stdout
 
 
 
 
 
 
+"""
+if __name__ == "__main__":
+    # python -m detection.StaticDetection.StaticMappedDetection
 
-"""if __name__ == "__main__":
-    # python -m test.StaticMappedDetection
-
-
-
-    smells=autofix_map_detect("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/qiskit_algorithms/gradients/utils.py")
+    smells=autofix_map_detect("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/Qelm-main/QelmT.py")
     for smell in smells:
         print(smell.as_dict())
 """

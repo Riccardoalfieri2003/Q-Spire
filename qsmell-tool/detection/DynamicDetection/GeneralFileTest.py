@@ -445,7 +445,7 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
 
 
 
-if __name__ == "__main__":
+"""if __name__ == "__main__":
     # python -m detection.DynamicDetection.GeneralFileTest
     
     # Test with the problematic file
@@ -460,3 +460,4 @@ if __name__ == "__main__":
         print(result)
     else:
         print(f"File {file} not found")
+"""

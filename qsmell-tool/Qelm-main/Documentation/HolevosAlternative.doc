@@ -1,0 +1,93 @@
+# Quantum-Enhanced Language Model (QELM)  
+### Current Architecture & Methods – Revision for Springer Nature  
+**Brenton Carter, R&D Biotech Alaska — 24 Jul 2025**
+
+---
+
+## Abstract
+Seven months after the first QELM paper, the code looks nothing like the original. This note dives into the new backbone (`QelmT.py`) and spells out what changed. Headlines:
+
+* **ExponentialSubwordTokenizer** (my own take on sub-word vocab merges).  
+* **Channel controls**: Pauli-twirling, zero-noise extrapolation (ZNE), and a tunable entropy jitter.  
+* **Sub-bit \((\theta,\phi)\) encoding** and cleaned-up parameter stores.  
+* **Quantum attention / FFN layers** bolted into a slim transformer scaffold.  
+* Optional context / positional / knowledge add-ons.  
+* CPU, GPU, or a cheat-code “simulation” switch for speed runs.
+
+Parameter-shift gradients stay for now, but parameters live inside `QuantumParameterStore` to keep the plumbing sane. Everything below is straight engineering—no marketing fluff.
+
+---
+
+## 1  Why bother?
+Full-size transformers burn cycles. QELM swaps some matrix math for parameterized quantum circuits (PQCs) you can run on a sim, a GPU, or—if you’re patient—real QPUs. 
+
+---
+
+## 2  Math (one-pager)
+* Qubit: \(|\psi⟩ = α|0⟩ + β|1⟩\).  
+* Ansatz: \(R_y/R_z\) + CX.  
+* Gradient: parameter-shift  
+  \(∂L/∂θ ≈ [L(θ+π/2) − L(θ−π/2)]/2\).  
+* Grover lives on for token search \(O(√N)\).  
+* Noise knobs: **Pauli-twirl** (makes errors stochastic) + **ZNE** (fit vs. scaled noise, extrapolate).
+
+---
+
+## 3  What’s in the box
+
+### Tokenizer
+`ExponentialSubwordTokenizer` replaces the old BPE stub. Caps vocab, handles punctuation, spits out sub-word IDs.
+
+### Channels
+`QuantumChannel` now packs:  
+`entropy_factor`, `apply_pauli_twirling`, `apply_zne`.  
+Encode/decode in scalar or sub-bit mode. `QuantumChannelManager` hands out channels thread-safe and supports quick-clone (“teleport”) of state.
+
+### Layers
+`QuantumAttentionLayer` + `QuantumFeedForwardLayer` both inherit `QuantumLayerBase`, pull weights from `QuantumParameterStore`, and spit a statevector. Backend: `'cpu' | 'gpu' | 'simulation'`.
+
+### Model
+`QuantumTransformerBlock` → `QuantumLanguageModel` with optional context/positional/knowledge heads. `quantum_attention_over_sequence` yanks weights from amplitudes instead of soft-maxing logits.
+
+### Optimizer & I/O
+Adam + parameter-shift. Everything dumps to/loads from JSON (`to_dict`, `from_dict`). Version tag `"4.0"` enforced.
+
+### Utilities
+Grover demo, token searcher, and a Tkinter GUI.
+
+---
+
+## 4  Train / Eval
+Tokenize → init → forward → cross-entropy → shift-grad → Adam step. Multiprocessing OK; inside one gradient call we still go param-by-param. Metrics: loss, perplexity; quantum extras (state fidelity, amp histograms) available if you want them.
+
+---
+
+## 5  What I’ve seen
+Single-epoch sim runs only: no crashes, loss drops, gradients behave. `entropy_factor` + twirl smooth gradients but slow convergence a hair; ZNE costs runtime but keeps amplitudes sane. Treat that as anecdote until we benchmark on a fixed corpus.
+
+---
+
+## 6  Next up
+* Swap manual shifts for analytic gradient back-ends.  
+* Play with mid-circuit measure/reset in attention heads.  
+* Push twirl/ZNE sweeps under a real cost model.  
+* Fold auto-QPU connectivity into mainline QELM and retire the bridge.
+
+---
+
+## 7  Change log vs. original
+1. **Tokenizer** – home-grown exponential sub-word.  
+2. **Noise switches** – entropy jitter, twirl, ZNE.  
+3. **Sub-bit encoding** – \((\theta,\phi)\) per qubit.  
+4. **Layer refactor** – `QuantumLayerBase`, `QuantumParameterStore`.  
+5. **Attention** – CX-driven amp-weighting, not softmax.  
+6. **Context / knowledge** add-ons.  
+7. **Resource toggle** – CPU / GPU / “simulation”.  
+8. **JSON persistence** with strict versioning.  
+9. **Grover** modularized, demo-only.  
+10. **GUI / logging** beefed up.
+
+---
+
+## Data & Code
+Everything you need is in the repo or standard datasets. Repro steps are in the docs.

@@ -1,40 +1,1903 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <title>Analyzer Tool</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QSmell Tool</title>
     <style>
-    body {
-        font-family: sans-serif;
-        padding: 20px;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #6366f1;
+            --primary-hover: #5855f3;
+            --secondary-color: #8b5cf6;
+            --background-color: #ffffff;
+            --surface-color: #f8fafc;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --radius: 0.75rem;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
+            --background-color: #0f172a;
+            --surface-color: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+            background: linear-gradient(135deg, var(--background-color) 0%, var(--surface-color) 100%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            transition: var(--transition);
+        }
+
+        .container {
+            max-width: 60rem;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            position: absolute;
+            top: 1.5rem;
+            right: 2rem;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 3rem;
+            height: 3rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .theme-toggle svg {
+            width: 1.25rem;
+            height: 1.25rem;
+            fill: var(--text-primary);
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .main-title {
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 1rem;
+            letter-spacing: -0.025em;
+        }
+
+        .subtitle {
+            font-size: clamp(1.125rem, 2.5vw, 1.5rem);
+            color: var(--text-secondary);
+            font-weight: 400;
+            margin-bottom: 2rem;
+        }
+
+        .divider {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
+            border-radius: 1px;
+            margin: 2rem 0;
+        }
+
+        /* Tab Navigation */
+        .tab-container {
+            background: var(--surface-color);
+            border-radius: var(--radius);
+            padding: 0.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .tab-nav {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .tab-button {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 1rem 1.5rem;
+            border-radius: calc(var(--radius) - 0.25rem);
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .tab-button.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+
+        .tab-button:not(.active):hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(0.5rem); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Main Content Card */
+        .main-card {
+            background: var(--surface-color);
+            border-radius: var(--radius);
+            padding: 2.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2rem;
+        }
+
+        /* Radio Button Group */
+        .detection-method {
+            margin-bottom: 2rem;
+        }
+
+        .radio-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .radio-option {
+            position: relative;
+            background: var(--background-color);
+            border: 2px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .radio-option:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .radio-option.selected {
+            border-color: var(--primary-color);
+            background: linear-gradient(135deg, var(--primary-color)10, transparent);
+        }
+
+        .radio-option input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .radio-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .radio-description {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* File Selection */
+        .file-selection {
+            margin-bottom: 2rem;
+        }
+
+        .file-input-group {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .file-label {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .file-display {
+            flex: 1;
+            background: var(--background-color);
+            border: 1px solid var(--border-color);
+            border-radius: calc(var(--radius) - 0.25rem);
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            min-height: 2.5rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .file-browse-btn {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 0.75rem 1.5rem;
+            border-radius: calc(var(--radius) - 0.25rem);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: var(--transition);
+            font-weight: 500;
+        }
+
+        .file-browse-btn:hover {
+            background: var(--border-color);
+            transform: translateY(-1px);
+        }
+
+        /* Hidden file input */
+        #file-input {
+            display: none;
+        }
+
+        /* Analyze Button */
+        .analyze-btn {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: var(--radius);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: var(--shadow);
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .analyze-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Analysis Status Section */
+        .analysis-status {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: var(--background-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        .status-content {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .loading-spinner {
+            width: 2rem;
+            height: 2rem;
+            color: var(--primary-color);
+            animation: spin 1s linear infinite;
+        }
+
+        .success-checkmark {
+            width: 2rem;
+            height: 2rem;
+            color: #10b981;
+        }
+
+        .success-checkmark svg {
+            animation: checkmark 0.6s ease-in-out;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes checkmark {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .status-text {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        /* Results Section Styling */
+        .results-header {
+            margin-bottom: 2rem;
+        }
+
+        .results-summary {
+            background: var(--background-color);
+            border: 1px solid var(--border-color);
+            border-radius: calc(var(--radius) - 0.25rem);
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+            gap: 1rem;
+        }
+
+        .summary-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .summary-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .summary-value {
+            font-size: 1rem;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* Smells Container */
+        .smells-container {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .smell-card {
+            background: var(--background-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .smell-card:hover {
+            border-color: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .smell-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .smell-type {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+        }
+
+        .smell-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            width: 2.5rem;
+            height: 2.5rem;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-secondary);
+        }
+
+        .action-btn:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: scale(1.05);
+            border-color: var(--primary-color);
+        }
+
+        .action-btn svg {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .smell-details {
+            display: grid;
+            gap: 0.5rem;
+            margin-left: 1rem;
+        }
+
+        .smell-detail {
+            display: flex;
+            gap: 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .detail-label {
+            color: var(--text-secondary);
+            font-weight: 500;
+            min-width: 6rem;
+        }
+
+        .detail-value {
+            color: var(--text-primary);
+            font-weight: 400;
+        }
+
+        /* Severity indicators */
+        .severity-high { border-left: 4px solid #ef4444; }
+        .severity-medium { border-left: 4px solid #f59e0b; }
+        .severity-low { border-left: 4px solid #10b981; }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .main-card {
+                padding: 1.5rem;
+            }
+
+            .theme-toggle {
+                top: 1rem;
+                right: 1rem;
+            }
+
+            .file-input-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+
+
+
+        /* Smells Container */
+        .smells-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .smell-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: none;
+            border-radius: 16px;
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .smell-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .smell-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .smell-card:hover::before {
+            opacity: 1;
+        }
+
+        /* Dark mode support */
+        [data-theme="dark"] .smell-card {
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .smell-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+        }
+
+        .smell-info {
+            flex: 1;
+            margin-right: 1rem;
+        }
+
+        .smell-type {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .smell-details {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .smell-detail {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 8px;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-right: 0.75rem;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+
+        .smell-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .action-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-btn svg {
+            width: 20px;
+            height: 20px;
+            transition: transform 0.2s ease;
+        }
+
+        .action-btn:hover {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .action-btn:hover svg {
+            transform: scale(1.1);
+        }
+
+        .action-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Severity-based styling */
+        .severity-high {
+            border-left: 4px solid #ef4444;
+        }
+
+        .severity-high .smell-type {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .severity-high .smell-detail {
+            background: rgba(239, 68, 68, 0.1);
+            border-left-color: #ef4444;
+        }
+
+        .severity-medium {
+            border-left: 4px solid #f59e0b;
+        }
+
+        .severity-medium .smell-type {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .severity-medium .smell-detail {
+            background: rgba(245, 158, 11, 0.1);
+            border-left-color: #f59e0b;
+        }
+
+        .severity-low {
+            border-left: 4px solid #10b981;
+        }
+
+        .severity-low .smell-type {
+            background: linear-gradient(135deg, #10b981, #059669);
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .severity-low .smell-detail {
+            background: rgba(16, 185, 129, 0.1);
+            border-left-color: #10b981;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .smells-container {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+            
+            .smell-card {
+                padding: 1.5rem;
+            }
+            
+            .smell-header {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .smell-actions {
+                flex-direction: row;
+                justify-content: flex-end;
+            }
+        }
+
+
+        .tab-content {
+            display: none; /* Hide all tabs by default */
+        }
+
+        .tab-content.active {
+            display: block; /* Only show active tab */
+        }
+
+        /* Make sure results tab content only shows in results tab */
+        #results-tab .smells-container {
+            display: none; /* Hidden by default */
+        }
+
+        #results-tab.active .smells-container {
+            display: grid; /* Only show when results tab is active */
+        }
+
+
+        /* Smells Container with spacing */
+.smells-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+    padding-bottom: 2rem; /* Extra bottom padding */
+}
+
+.smell-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-bottom: 1rem; /* Extra spacing between cards */
+}
+
+/* Remove the colorful top line and replace with subtle shadow hover */
+.smell-card::before {
+    display: none; /* Remove the colorful line */
+}
+
+.smell-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    border-color: #c7d2fe;
+}
+
+/* Dark mode support */
+[data-theme="dark"] .smell-card {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border-color: #374151;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .smell-card:hover {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    border-color: #4f46e5;
+}
+
+.smell-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+}
+
+.smell-info {
+    flex: 1;
+    margin-right: 1rem;
+}
+
+.smell-type {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.smell-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.smell-detail {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: rgba(59, 130, 246, 0.08);
+    border-radius: 8px;
+    border-left: 3px solid #3b82f6;
+}
+
+.detail-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-right: 0.75rem;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.detail-value {
+    font-weight: 500;
+    color: var(--text-primary);
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+    background: rgba(255, 255, 255, 0.8);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+/* Action buttons with light/dark theme support */
+.smell-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.action-btn {
+    width: 44px;
+    height: 44px;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.action-btn svg {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.2s ease;
+}
+
+/* Light theme hover effects */
+.explanation-btn:hover {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+    transform: scale(1.05);
+}
+
+.solution-btn:hover {
+    background: #10b981;
+    border-color: #10b981;
+    color: white;
+    transform: scale(1.05);
+}
+
+.action-btn:hover svg {
+    transform: scale(1.1);
+}
+
+.action-btn:active {
+    transform: scale(0.95);
+}
+
+/* Dark theme button styles */
+[data-theme="dark"] .action-btn {
+    background: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+}
+
+[data-theme="dark"] .explanation-btn:hover {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+}
+
+[data-theme="dark"] .solution-btn:hover {
+    background: #10b981;
+    border-color: #10b981;
+    color: white;
+}
+
+/* Card spacer for extra spacing */
+.card-spacer {
+    height: 1rem;
+    width: 100%;
+}
+
+/* Severity-based styling (updated without the top line) */
+.severity-high {
+    border-left: 4px solid #ef4444;
+}
+
+.severity-high .smell-type {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.severity-high .smell-detail {
+    background: rgba(239, 68, 68, 0.08);
+    border-left-color: #ef4444;
+}
+
+.severity-medium {
+    border-left: 4px solid #f59e0b;
+}
+
+.severity-medium .smell-type {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.severity-medium .smell-detail {
+    background: rgba(245, 158, 11, 0.08);
+    border-left-color: #f59e0b;
+}
+
+.severity-low {
+    border-left: 4px solid #10b981;
+}
+
+.severity-low .smell-type {
+    background: linear-gradient(135deg, #10b981, #059669);
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.severity-low .smell-detail {
+    background: rgba(16, 185, 129, 0.08);
+    border-left-color: #10b981;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .smells-container {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
     }
-    button {
-        background-color: #007acc;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        font-size: 16px;
-        border-radius: 5px;
-        cursor: pointer;
+    
+    .smell-card {
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
     }
-    button:hover {
-        background-color: #005f99;
+    
+    .smell-header {
+        flex-direction: column;
+        gap: 1rem;
     }
+    
+    .smell-actions {
+        flex-direction: row;
+        justify-content: flex-end;
+    }
+}
+
+
     </style>
 </head>
-
 <body>
-    <h1>Welcome to Code Analyzer</h1>
-    <p>Select an option below:</p>
-    <button onclick="vscode.postMessage({ command: 'analyze' })">Analyze File</button>
+    <div class="theme-toggle" onclick="toggleTheme()">
+        <svg class="sun-icon" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="5"/>
+            <path d="m12 1 1.5 1.5M21 12l1.5-1.5m-1.5 1.5-1.5 1.5M12 23l-1.5-1.5M3 12l-1.5 1.5m1.5-1.5 1.5-1.5"/>
+        </svg>
+        <svg class="moon-icon" viewBox="0 0 24 24" style="display: none;">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+    </div>
 
+    <div class="container">
+        <header class="header">
+            <h1 class="main-title">QSmell Tool</h1>
+            <p class="subtitle">Elevate your quantum code quality with intelligent smell detection</p>
+            <div class="divider"></div>
+        </header>
+
+        <div class="tab-container">
+            <nav class="tab-nav">
+                <button class="tab-button active" onclick="switchTab('detection')">Detection Tool</button>
+                <button class="tab-button" onclick="switchTab('results')">Results & Analysis</button>
+            </nav>
+        </div>
+
+        <div id="detection-tab" class="tab-content active">
+            <div class="main-card">
+                <h2 class="section-title">QSmell Tool</h2>
+                
+                <div class="detection-method">
+                    <div class="radio-group">
+                        <label class="radio-option" for="dynamic">
+                            <input type="radio" id="dynamic" name="detection-type" value="dynamic" onchange="updateAnalyzeButton()">
+                            <div class="radio-title">
+                                ⚡ Dynamic Detection
+                            </div>
+                            <div class="radio-description">
+                                Analyze quantum code smells during runtime execution with real-time monitoring and dynamic analysis techniques.
+                            </div>
+                        </label>
+                        
+                        <label class="radio-option" for="static">
+                            <input type="radio" id="static" name="detection-type" value="static" onchange="updateAnalyzeButton()">
+                            <div class="radio-title">
+                                🔍 Static Detection
+                            </div>
+                            <div class="radio-description">
+                                Perform comprehensive static analysis of quantum code structure without execution, identifying potential issues early.
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="file-selection">
+                    <label class="file-label">Select File</label>
+                    <div class="file-input-group">
+                        <div class="file-display" id="file-display">
+                            No file selected
+                        </div>
+                        <button class="file-browse-btn" onclick="document.getElementById('file-input').click()">
+                            Browse Files
+                        </button>
+                        <input type="file" id="file-input" accept=".py,.qasm,.q" onchange="handleFileSelect(event)">
+                    </div>
+                </div>
+
+                <button class="analyze-btn" id="analyze-btn" onclick="analyzeFile()" disabled>
+                    Analyze File
+                </button>
+
+                <!-- Loading/Status Section -->
+                <div class="analysis-status" id="analysis-status" style="display: none;">
+                    <div class="status-content">
+                        <div class="loading-spinner" id="loading-spinner">
+                            <svg viewBox="0 0 50 50">
+                                <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+                                    <animate attributeName="stroke-array" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
+                                    <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>
+                                </circle>
+                            </svg>
+                        </div>
+                        <div class="success-checkmark" id="success-checkmark" style="display: none;">
+                            <svg viewBox="0 0 50 50">
+                                <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="4"/>
+                                <path fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" d="M14 25l7 7 14-14"/>
+                            </svg>
+                        </div>
+                        <div class="status-text" id="status-text">Detecting Smells...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="results-tab" class="tab-content">
+            <div class="main-card">
+                <div class="results-header">
+                    <h2 class="section-title">Results & Analysis</h2>
+                    <div class="results-summary" id="results-summary" style="display: none;">
+                        <div class="summary-item">
+                            <span class="summary-label">File Analyzed:</span>
+                            <span class="summary-value" id="analyzed-file-name">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Detection Method:</span>
+                            <span class="summary-value" id="detection-method">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Smells Found:</span>
+                            <span class="summary-value" id="smells-count">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="results-content" id="results-content">
+                    <div class="empty-state" id="empty-state">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        <h3>Results & Analysis</h3>
+                        <p>This section will display your quantum code smell analysis results.</p>
+                        <p style="margin-top: 0.5rem; font-size: 0.875rem;">Run an analysis to see detailed insights here.</p>
+                    </div>
+
+                    <div class="smells-container" id="smells-container" style="display: none;">
+                        <!-- Smells will be dynamically inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
-    const vscode = acquireVsCodeApi();
+        // Theme toggle functionality
+        function toggleTheme() {
+            const body = document.body;
+            const currentTheme = body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            body.setAttribute('data-theme', newTheme);
+            
+            // Toggle icon visibility
+            const sunIcon = document.querySelector('.sun-icon');
+            const moonIcon = document.querySelector('.moon-icon');
+            
+            if (newTheme === 'dark') {
+                sunIcon.style.display = 'none';
+                moonIcon.style.display = 'block';
+            } else {
+                sunIcon.style.display = 'block';
+                moonIcon.style.display = 'none';
+            }
+        }
 
-    // You can handle messages from extension if needed here
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            // Add active class to selected tab button
+            event.target.classList.add('active');
+        }
+
+        // Radio button selection styling
+        document.addEventListener('DOMContentLoaded', function() {
+            const radioOptions = document.querySelectorAll('.radio-option');
+            radioOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    // Remove selected class from all options
+                    radioOptions.forEach(opt => opt.classList.remove('selected'));
+                    // Add selected class to clicked option
+                    this.classList.add('selected');
+                });
+            });
+        });
+
+        // File selection handling
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            const fileDisplay = document.getElementById('file-display');
+            
+            if (file) {
+                fileDisplay.textContent = file.name;
+                fileDisplay.style.color = 'var(--text-primary)';
+            } else {
+                fileDisplay.textContent = 'No file selected';
+                fileDisplay.style.color = 'var(--text-secondary)';
+            }
+            
+            updateAnalyzeButton();
+        }
+
+        // Update analyze button state
+        function updateAnalyzeButton() {
+            const selectedMethod = document.querySelector('input[name="detection-type"]:checked');
+            const fileInput = document.getElementById('file-input');
+            const hasManualFile = fileInput.files.length > 0;
+            const hasActiveFile = currentFilePath !== null && currentFilePath !== undefined;
+            const analyzeBtn = document.getElementById('analyze-btn');
+            
+            console.log('Updating analyze button:', { selectedMethod: !!selectedMethod, hasManualFile, hasActiveFile, currentFilePath });
+            
+            // Enable if method is selected AND (manual file is selected OR active file is available)
+            if (selectedMethod && (hasManualFile || hasActiveFile)) {
+                analyzeBtn.disabled = false;
+            } else {
+                analyzeBtn.disabled = true;
+            }
+        }
+
+        // VSCode API reference (will be available in webview)
+        let vscode;
+        let currentFilePath = null;
+        let currentFileName = null;
+
+        // Initialize VSCode API
+        try {
+            vscode = acquireVsCodeApi();
+            console.log('VSCode API acquired successfully');
+        } catch (error) {
+            console.error('Failed to acquire VSCode API:', error);
+        }
+
+        // Analyze file function - sends message to VSCode extension
+        function analyzeFile() {
+            const selectedMethod = document.querySelector('input[name="detection-type"]:checked');
+            const fileInput = document.getElementById('file-input');
+            const hasSelectedFile = fileInput.files.length > 0;
+            
+            if (selectedMethod && vscode) {
+                console.log('Sending analyze command to VSCode');
+                // Send message to VSCode extension
+                vscode.postMessage({
+                    command: 'analyze',
+                    method: selectedMethod.value,
+                    useActiveFile: !hasSelectedFile, // Use active file if no file was manually selected
+                    fileName: currentFilePath
+                });
+            } else {
+                console.error('Cannot analyze: method not selected or VSCode API not available');
+            }
+        }
+
+        // Request active file info from VSCode
+        function requestActiveFileInfo() {
+            if (vscode) {
+                console.log('Requesting active file info from VSCode');
+                vscode.postMessage({
+                    command: 'getActiveFile'
+                });
+            } else {
+                console.error('VSCode API not available');
+            }
+        }
+
+        // Handle messages from VSCode extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            console.log('Received message from VSCode:', message);
+            
+            switch (message.command) {
+                case 'activeFileInfo':
+                    updateActiveFileDisplay(message.fileName, message.filePath, message.multipleFiles);
+                    break;
+                case 'analysisStarted':
+                    showAnalysisStarted(message.fileName, message.method);
+                    break;
+                case 'analysisComplete':
+                    console.log('Raw message received:', message);
+                    console.log('Message results:', message.results);
+                    console.log('Message fileName:', message.fileName);
+                    console.log('Message method:', message.method);
+                    
+                    showAnalysisResults({
+                        results: message.results,
+                        fileName: message.fileName,
+                        method: message.method
+                    });
+                    break;
+                case 'analysisError':
+                    showAnalysisError(message.error);
+                    break;
+                default:
+                    console.log('Unknown message command:', message.command);
+            }
+        });
+
+        // Update the file display with active file info
+        function updateActiveFileDisplay(fileName, filePath, multipleFiles) {
+            const fileDisplay = document.getElementById('file-display');
+            const fileInput = document.getElementById('file-input');
+            
+            console.log('Updating file display:', { fileName, filePath, multipleFiles });
+            
+            // Only update if user hasn't manually selected a file
+            if (fileInput.files.length === 0) {
+                if (multipleFiles) {
+                    fileDisplay.textContent = 'Multiple files open - please select one';
+                    fileDisplay.style.color = 'var(--text-secondary)';
+                    currentFilePath = null;
+                    currentFileName = null;
+                } else if (fileName && filePath) {
+                    fileDisplay.textContent = fileName;
+                    fileDisplay.style.color = 'var(--text-primary)';
+                    currentFilePath = filePath;
+                    currentFileName = fileName;
+                } else {
+                    fileDisplay.textContent = 'No file selected';
+                    fileDisplay.style.color = 'var(--text-secondary)';
+                    currentFilePath = null;
+                    currentFileName = null;
+                }
+                updateAnalyzeButton();
+            }
+        }
+
+        // Show analysis started feedback
+        function showAnalysisStarted(fileName, method) {
+            const statusSection = document.getElementById('analysis-status');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const successCheckmark = document.getElementById('success-checkmark');
+            const statusText = document.getElementById('status-text');
+            
+            // Show status section
+            statusSection.style.display = 'block';
+            
+            // Show loading state
+            loadingSpinner.style.display = 'block';
+            successCheckmark.style.display = 'none';
+            statusText.textContent = 'Detecting Smells...';
+            
+            // Disable analyze button
+            const analyzeBtn = document.getElementById('analyze-btn');
+            analyzeBtn.disabled = true;
+        }
+
+        /*
+       function showAnalysisResults(data) {
+            console.log('showAnalysisResults called with:', data);
+            
+            const statusSection = document.getElementById('analysis-status');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const successCheckmark = document.getElementById('success-checkmark');
+            const statusText = document.getElementById('status-text');
+            const analyzeBtn = document.getElementById('analyze-btn');
+            
+            // Update status to success
+            loadingSpinner.style.display = 'none';
+            successCheckmark.style.display = 'block';
+            statusText.textContent = 'Smells Detected. Go to Results and Analysis section';
+            
+            // Re-enable analyze button after a delay
+            setTimeout(() => {
+                analyzeBtn.disabled = false;
+                updateAnalyzeButton();
+            }, 1000);
+            
+            // Prepare data for updateResultsDisplay
+            const resultsData = {
+                fileName: data.fileName,
+                method: data.method,
+                smells: data.results // This might need adjustment based on your Python output structure
+            };
+            
+            console.log('Calling updateResultsDisplay with:', resultsData);
+            
+            // Update results display with proper structure
+            updateResultsDisplay(resultsData);
+            
+            // Hide status section after 3 seconds
+            setTimeout(() => {
+                statusSection.style.display = 'none';
+            }, 3000);
+        }*/
+
+        function showAnalysisResults(data) {
+            console.log('showAnalysisResults called with:', data);
+            
+            const statusSection = document.getElementById('analysis-status');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const successCheckmark = document.getElementById('success-checkmark');
+            const statusText = document.getElementById('status-text');
+            const analyzeBtn = document.getElementById('analyze-btn');
+            
+            // Update status to success
+            loadingSpinner.style.display = 'none';
+            successCheckmark.style.display = 'block';
+            statusText.textContent = 'Smells Detected. Go to Results and Analysis section';
+            
+            // Re-enable analyze button after a delay
+            setTimeout(() => {
+                analyzeBtn.disabled = false;
+                updateAnalyzeButton();
+            }, 1000);
+            
+            // Prepare data for updateResultsDisplay
+            const resultsData = {
+                fileName: data.fileName,
+                method: data.method,
+                smells: data.results
+            };
+            
+            console.log('Calling updateResultsDisplay with:', resultsData);
+            
+            // Update results display with proper structure
+            updateResultsDisplay(resultsData);
+            
+            // Hide status section after 3 seconds
+            /*
+            setTimeout(() => {
+                statusSection.style.display = 'none';
+            }, 3000);
+            */
+        }
+        
+        // Hide status section after 3 secondsà
+        /*
+        setTimeout(() => {
+            statusSection.style.display = 'none';
+        }, 3000);
+        */
+    
+
+        // Show analysis error
+        function showAnalysisError(error) {
+            const statusSection = document.getElementById('analysis-status');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const statusText = document.getElementById('status-text');
+            const analyzeBtn = document.getElementById('analyze-btn');
+            
+            // Update status to error
+            loadingSpinner.style.display = 'none';
+            statusText.textContent = `Analysis failed: ${error}`;
+            statusText.style.color = '#ef4444';
+            
+            // Re-enable analyze button
+            analyzeBtn.disabled = false;
+            updateAnalyzeButton();
+            
+            // Hide status section after 5 seconds
+            setTimeout(() => {
+                statusSection.style.display = 'none';
+                statusText.style.color = 'var(--text-primary)';
+            }, 5000);
+        }
+
+
+
+        function updateResultsDisplay(results) {
+            try {
+                currentSmells = results.smells || [];
+                console.log('Updating results display with:', results);
+                
+                // Be VERY specific about targeting only the results tab
+                const resultsTab = document.getElementById('results-tab');
+                const emptyState = document.querySelector('#results-tab #empty-state');
+                const resultsSummary = document.querySelector('#results-tab #results-summary');
+                const smellsContainer = document.querySelector('#results-tab #smells-container');
+                
+                console.log('DOM elements found:', {
+                    resultsTab: !!resultsTab,
+                    emptyState: !!emptyState,
+                    resultsSummary: !!resultsSummary,
+                    smellsContainer: !!smellsContainer
+                });
+                
+                // Make sure we're only working with the results tab
+                if (!resultsTab || !smellsContainer) {
+                    console.error('Results tab or smells container not found!');
+                    return;
+                }
+                
+                // Hide empty state and show results ONLY in results tab
+                if (emptyState) {
+                    emptyState.style.display = 'none';
+                }
+                
+                if (resultsSummary) {
+                    resultsSummary.style.display = 'grid';
+                }
+                
+                // Force the smells container to be visible ONLY when we're updating it
+                smellsContainer.style.display = 'grid';
+                
+                // Clear previous results
+                smellsContainer.innerHTML = '';
+                console.log('Cleared previous results');
+                
+                if (resultsSummary) {
+                    resultsSummary.style.display = 'grid';
+                    console.log('Made results summary visible');
+                }
+                
+                if (smellsContainer) {
+                    smellsContainer.style.display = 'block'; // Changed from 'grid' to 'block'
+                    console.log('Made smells container visible');
+                }
+                
+                // Update summary information
+                const fileNameEl = document.getElementById('analyzed-file-name');
+                const methodEl = document.getElementById('detection-method');
+                const countEl = document.getElementById('smells-count');
+                
+                if (fileNameEl) {
+                    fileNameEl.textContent = results.fileName || 'Unknown';
+                    console.log('Updated file name to:', results.fileName);
+                }
+                
+                if (methodEl) {
+                    methodEl.textContent = results.method || 'Unknown';
+                    console.log('Updated method to:', results.method);
+                }
+                
+                if (countEl) {
+                    console.log(results.smells.smells.smells)
+                    countEl.textContent = results.smells.smells.smells ? results.smells.smells.smells.length : 0;
+                    console.log('Updated smell count to:', results.smells.smells.smells ? results.smells.smells.smells.length : 0);
+                }
+                
+                // Clear previous results
+                if (smellsContainer) {
+                    smellsContainer.innerHTML = '';
+                    console.log('Cleared previous results');
+                    
+                    // Add smells
+                    if (results.smells.smells.smells && results.smells.smells.smells.length > 0) {
+
+                        console.log('Adding', results.smells.smells.smells.length, 'smell cards');
+                        results.smells.smells.smells.forEach((smell, index) => {
+                            console.log('Creating smell card for:', smell);
+                            const smellCard = createSmellCard(smell, index);
+                            smellsContainer.appendChild(smellCard);
+                            console.log('Added smell card', index);
+                        });
+                    } else {
+                        console.log('No smells found, showing success message');
+                        // No smells found
+                        smellsContainer.innerHTML = `
+                            <div class="smell-card" style="text-align: center; padding: 2rem; grid-column: 1 / -1;">
+                                <div style="color: var(--text-secondary);">
+                                    <svg style="width: 3rem; height: 3rem; margin-bottom: 1rem; opacity: 0.5;" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    <h3>No Code Smells Found!</h3>
+                                    <p>Your quantum code looks clean and follows best practices.</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                console.log('updateResultsDisplay completed successfully');
+                
+            } catch (error) {
+                console.error('ERROR in updateResultsDisplay:', error);
+            }
+        }
+
+        
+
+        // Configure which information to display for each smell type
+        function getSmellDisplayConfig(smell) {
+            const config = [];
+            
+            // Always show position if available
+            if (smell.row !== undefined) {
+                config.push({
+                    label: 'Row',
+                    value: smell.row
+                });
+            }
+            
+            if (smell.column_start !== undefined && smell.column_end !== undefined) {
+                config.push({
+                    label: 'Columns',
+                    value: `${smell.column_start}-${smell.column_end}`
+                });
+            }
+            
+            // Show circuit name if available
+            if (smell.circuit_name) {
+                config.push({
+                    label: 'Circuit',
+                    value: smell.circuit_name
+                });
+            }
+            
+            // Add type-specific information based on smell type
+            switch (smell.type) {
+                case 'Long Quantum Circuit':
+                    if (smell.gate_count) {
+                        config.push({
+                            label: 'Gate Count',
+                            value: smell.gate_count
+                        });
+                    }
+                    break;
+                    
+                case 'Unused Quantum Register':
+                    if (smell.register_name) {
+                        config.push({
+                            label: 'Register',
+                            value: smell.register_name
+                        });
+                    }
+                    break;
+                    
+                case 'Deep Quantum Circuit':
+                    if (smell.depth) {
+                        config.push({
+                            label: 'Depth',
+                            value: smell.depth
+                        });
+                    }
+                    break;
+                    
+                default:
+                    // For unknown types, show any additional properties
+                    Object.keys(smell).forEach(key => {
+                        if (!['type', 'row', 'column_start', 'column_end', 'explanation', 'suggestion', 'circuit_name'].includes(key)) {
+                            config.push({
+                                label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                                value: smell[key]
+                            });
+                        }
+                    });
+            }
+            
+            return config;
+        }
+
+        // Get severity class based on smell type or properties
+        function getSeverityClass(smell) {
+            const highSeverityTypes = ['Critical Error', 'Security Issue', 'Performance Critical'];
+            const mediumSeverityTypes = ['Long Quantum Circuit', 'Deep Quantum Circuit'];
+            
+            if (highSeverityTypes.includes(smell.type)) {
+                return 'severity-high';
+            } else if (mediumSeverityTypes.includes(smell.type)) {
+                return 'severity-medium';
+            } else {
+                return 'severity-low';
+            }
+        }
+        
+        // Create a smell card element
+        function createSmellCard(smell, index) {
+            const card = document.createElement('div');
+            card.className = `smell-card ${getSeverityClass(smell)}`;
+            
+            // Configure what information to display based on smell type
+            const displayConfig = getSmellDisplayConfig(smell);
+            
+            card.innerHTML = `
+                <div class="smell-header">
+                    <div class="smell-info">
+                        <div class="smell-type">${smell.type || 'Unknown Smell'}</div>
+                        <div class="smell-details">
+                            ${displayConfig.map(config => 
+                                config.value ? `
+                                    <div class="smell-detail">
+                                        <span class="detail-label">${config.label}</span>
+                                        <span class="detail-value">${config.value}</span>
+                                    </div>
+                                ` : ''
+                            ).join('')}
+                        </div>
+                    </div>
+                    <div class="smell-actions">
+                        <button class="action-btn explanation-btn" onclick="showExplanation(${index})" title="Show Explanation">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+                            </svg>
+                        </button>
+                        <button class="action-btn solution-btn" onclick="showSolution(${index})" title="Show Solution">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-spacer"></div>
+            `;
+            
+            return card;
+        }
+
+        // Configure which information to display for each smell type
+        function getSmellDisplayConfig(smell) {
+            // This is where you can customize what information to show for each smell
+            const config = [];
+            
+            // Always show position if available
+            if (smell.row !== undefined) {
+                config.push({
+                    label: 'Row',
+                    value: smell.row
+                });
+            }
+            
+            if (smell.column_start !== undefined && smell.column_end !== undefined) {
+                config.push({
+                    label: 'Columns',
+                    value: `${smell.column_start}-${smell.column_end}`
+                });
+            }
+            
+            // Show circuit name if available
+            if (smell.circuit_name) {
+                config.push({
+                    label: 'Circuit',
+                    value: smell.circuit_name
+                });
+            }
+            
+            // Add type-specific information here
+            // Example customization based on smell type:
+            switch (smell.type) {
+                case 'Long Quantum Circuit':
+                    if (smell.gate_count) {
+                        config.push({
+                            label: 'Gate Count',
+                            value: smell.gate_count
+                        });
+                    }
+                    break;
+                    
+                case 'Unused Quantum Register':
+                    if (smell.register_name) {
+                        config.push({
+                            label: 'Register',
+                            value: smell.register_name
+                        });
+                    }
+                    break;
+                    
+                case 'Deep Quantum Circuit':
+                    if (smell.depth) {
+                        config.push({
+                            label: 'Depth',
+                            value: smell.depth
+                        });
+                    }
+                    break;
+                    
+                // Add more cases as needed for your specific smell types
+                default:
+                    // For unknown types, show any additional properties
+                    Object.keys(smell).forEach(key => {
+                        if (!['type', 'row', 'column_start', 'column_end', 'explanation', 'suggestion', 'circuit_name'].includes(key)) {
+                            config.push({
+                                label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                                value: smell[key]
+                            });
+                        }
+                    });
+            }
+            
+            return config;
+        }
+
+        // Get severity class based on smell type or properties
+        function getSeverityClass(smell) {
+            // You can customize this logic based on your smell types
+            const highSeverityTypes = ['Critical Error', 'Security Issue', 'Performance Critical'];
+            const mediumSeverityTypes = ['Long Quantum Circuit', 'Deep Quantum Circuit'];
+            
+            if (highSeverityTypes.includes(smell.type)) {
+                return 'severity-high';
+            } else if (mediumSeverityTypes.includes(smell.type)) {
+                return 'severity-medium';
+            } else {
+                return 'severity-low';
+            }
+        }
+
+        // Global variable to store current smells for action buttons
+        let currentSmells = [];
+
+        // Store smells globally when results are updated
+        /*
+        function updateResultsDisplay(results) {
+            currentSmells = results.smells || [];
+            // ... rest of the existing updateResultsDisplay function code remains the same
+            console.log('Updating results display with:', results);
+            
+            const emptyState = document.getElementById('empty-state');
+            const resultsSummary = document.getElementById('results-summary');
+            const smellsContainer = document.getElementById('smells-container');
+            
+            // Hide empty state and show results
+            emptyState.style.display = 'none';
+            resultsSummary.style.display = 'grid';
+            smellsContainer.style.display = 'grid';
+            
+            // Update summary
+            document.getElementById('analyzed-file-name').textContent = results.fileName || 'Unknown';
+            document.getElementById('detection-method').textContent = results.method || 'Unknown';
+            document.getElementById('smells-count').textContent = results.smells ? results.smells.length : 0;
+            
+            // Clear previous results
+            smellsContainer.innerHTML = '';
+            
+            // Add smells
+            if (results.smells && results.smells.length > 0) {
+                results.smells.forEach((smell, index) => {
+                    const smellCard = createSmellCard(smell, index);
+                    smellsContainer.appendChild(smellCard);
+                });
+            } else {
+                // No smells found
+                smellsContainer.innerHTML = `
+                    <div class="smell-card" style="text-align: center; padding: 2rem;">
+                        <div style="color: var(--text-secondary);">
+                            <svg style="width: 3rem; height: 3rem; margin-bottom: 1rem; opacity: 0.5;" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <h3>No Code Smells Found!</h3>
+                            <p>Your quantum code looks clean and follows best practices.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        */
+
+        // Placeholder functions for action buttons - you'll implement these
+        function showExplanation(smellIndex) {
+            const smell = currentSmells[smellIndex];
+            if (smell && smell.explanation) {
+                alert(`Explanation for ${smell.type}:\n\n${smell.explanation}`);
+            } else {
+                alert(`Explanation for ${smell.type}:\n\nThis smell indicates potential issues in your quantum code that should be reviewed.`);
+            }
+            // TODO: Replace with your actual explanation implementation
+        }
+
+        function showSolution(smellIndex) {
+            const smell = currentSmells[smellIndex];
+            if (smell && smell.suggestion) {
+                alert(`Solution for ${smell.type}:\n\n${smell.suggestion}`);
+            } else {
+                alert(`Solution for ${smell.type}:\n\nConsider reviewing and refactoring this part of your code according to quantum computing best practices.`);
+            }
+            // TODO: Replace with your actual solution implementation
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing...');
+            
+            // Try to get VSCode API if not already acquired
+            if (!vscode) {
+                try {
+                    vscode = acquireVsCodeApi();
+                    console.log('VSCode API acquired on DOM ready');
+                } catch (error) {
+                    console.error('Failed to acquire VSCode API on DOM ready:', error);
+                }
+            }
+            
+            // Request active file info from VSCode immediately
+            setTimeout(() => {
+                requestActiveFileInfo();
+            }, 500); // Small delay to ensure extension is ready
+            
+            // Set up periodic updates for active file (when focus changes)
+            setInterval(() => {
+                requestActiveFileInfo();
+            }, 3000); // Check every 3 seconds
+        });
+
+
+
+
+
+
+
+
+
+
+
+
+
     </script>
 </body>
-
 </html>

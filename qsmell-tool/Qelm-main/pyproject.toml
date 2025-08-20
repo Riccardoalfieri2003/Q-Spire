@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qelm"               
+version = "0.1.4"          
+description = "Quantum-Enhanced Language Model"
+authors = [{ name = "Brenton Carter" }]
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "qiskit-aer>=0.12",
+  "qiskit>=1.0",
+  "tensorflow>=2.16",
+  "nltk>=3.8",
+  "psutil>=5.9",
+  "matplotlib>=3.8"
+
+]
+
+[tool.setuptools]
+packages = ["qelm"]
+py-modules = ["Qelm", "QelmT", "QELMChatUI", "requirements", "README"]  
