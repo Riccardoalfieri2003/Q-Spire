@@ -11,6 +11,6 @@ qc.barrier()
 qc.measure(range(3), range(3))
 
 initial_layout=[0,2,1]
-qc2= transpile(qc, backend, initial_layout=initial_layout)
+qc2= transpile(qc, backend)
 
 qc3= transpile_alt(qc2, backend)

@@ -31,8 +31,8 @@ class LPQDetector(Detector, ast.NodeVisitor):
 
             if not has_initial_layout:
                 row = call.lineno
-                col_start = call.col_offset
-                col_end = getattr(call, 'end_col_offset', col_start + len("transpile"))
+                col_start = call.col_offset+1
+                col_end = getattr(call, 'end_col_offset', col_start + len("transpile"))+1
 
                 circuit_name = None
                 if call.args:
