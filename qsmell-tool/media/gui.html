@@ -616,6 +616,7 @@
             letter-spacing: 0.5px;
         }
 
+        /*
         .detail-value {
             font-weight: 500;
             color: var(--text-primary);
@@ -624,7 +625,7 @@
             padding: 0.25rem 0.5rem;
             border-radius: 4px;
             font-size: 0.875rem;
-        }
+        }*/
 
         .smell-actions {
             display: flex;
@@ -846,11 +847,11 @@
     letter-spacing: 0.5px;
 }
 
+
 .detail-value {
     font-weight: 500;
     color: var(--text-primary);
     font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
-    background: rgba(255, 255, 255, 0.8);
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     font-size: 0.875rem;
@@ -1000,6 +1001,49 @@
         flex-direction: row;
         justify-content: flex-end;
     }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+/* Light theme (default) */
+.smell-details {
+    background-color: transparent;
+    color: #333333;
+}
+
+
+
+/* Dark theme */
+body.dark-mode .smell-details,
+.dark-mode .smell-details {
+    background-color: transparent;
+    color: #e0e0e0;
+}
+
+body.dark-mode .detail-label,
+.dark-mode .detail-label {
+    color: #b0b0b0;
+    background-color: inherit; /* Inherit the green background from parent row */
+}
+
+body.dark-mode .detail-value,
+.dark-mode .detail-value {
+    color: #ffffff !important; /* Make values clearly visible in dark mode */
+    background-color: inherit; /* Inherit the green background from parent row */
+}
+
+body.dark-mode .smell-detail,
+.dark-mode .smell-detail {
+    background-color: rgba(0, 128, 0, 0.2) !important; /* Slightly more visible green in dark mode */
 }
 
 
@@ -1578,15 +1622,17 @@
         function getSmellDisplayConfig(smell) {
             const config = [];
             
+            console.log("Smell row: ",smell.row)
+            console.log(typeof(smell.row))
             // Always show position if available
-            if (smell.row !== undefined) {
+            if (smell.row != null) {
                 config.push({
                     label: 'Row',
                     value: smell.row
                 });
             }
             
-            if (smell.column_start !== undefined && smell.column_end !== undefined) {
+            if (smell.column_start != null && smell.column_end != null) {
                 config.push({
                     label: 'Columns',
                     value: `${smell.column_start}-${smell.column_end}`
@@ -1594,7 +1640,7 @@
             }
             
             // Show circuit name if available
-            if (smell.circuit_name) {
+            if (smell.circuit_name && smell.circuit_name!="null") {
                 config.push({
                     label: 'Circuit',
                     value: smell.circuit_name
@@ -1603,7 +1649,8 @@
             
             // Add type-specific information based on smell type
             switch (smell.type) {
-                case 'Long Quantum Circuit':
+                /*
+                case 'LC':
                     if (smell.gate_count) {
                         config.push({
                             label: 'Gate Count',
@@ -1629,17 +1676,22 @@
                         });
                     }
                     break;
+                */
                     
-                default:
-                    // For unknown types, show any additional properties
-                    Object.keys(smell).forEach(key => {
-                        if (!['type', 'row', 'column_start', 'column_end', 'explanation', 'suggestion', 'circuit_name'].includes(key)) {
-                            config.push({
-                                label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                                value: smell[key]
-                            });
-                        }
-                    });
+                
+            default:
+                // For unknown types, show any additional properties (excluding falsy values)
+                Object.keys(smell).forEach(key => {
+                    if (!['type', 'row', 'column_start', 'column_end', 'explanation', 'suggestion', 'circuit_name'].includes(key) && 
+                        smell[key] !== null && 
+                        smell[key] !== undefined &&
+                        smell[key] !== '') {
+                        config.push({
+                            label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                            value: smell[key]
+                        });
+                    }
+                });
             }
             
             return config;
@@ -1701,80 +1753,7 @@
             return card;
         }
 
-        // Configure which information to display for each smell type
-        function getSmellDisplayConfig(smell) {
-            // This is where you can customize what information to show for each smell
-            const config = [];
-            
-            // Always show position if available
-            if (smell.row !== undefined) {
-                config.push({
-                    label: 'Row',
-                    value: smell.row
-                });
-            }
-            
-            if (smell.column_start !== undefined && smell.column_end !== undefined) {
-                config.push({
-                    label: 'Columns',
-                    value: `${smell.column_start}-${smell.column_end}`
-                });
-            }
-            
-            // Show circuit name if available
-            if (smell.circuit_name) {
-                config.push({
-                    label: 'Circuit',
-                    value: smell.circuit_name
-                });
-            }
-            
-            // Add type-specific information here
-            // Example customization based on smell type:
-            switch (smell.type) {
-                case 'Long Quantum Circuit':
-                    if (smell.gate_count) {
-                        config.push({
-                            label: 'Gate Count',
-                            value: smell.gate_count
-                        });
-                    }
-                    break;
-                    
-                case 'Unused Quantum Register':
-                    if (smell.register_name) {
-                        config.push({
-                            label: 'Register',
-                            value: smell.register_name
-                        });
-                    }
-                    break;
-                    
-                case 'Deep Quantum Circuit':
-                    if (smell.depth) {
-                        config.push({
-                            label: 'Depth',
-                            value: smell.depth
-                        });
-                    }
-                    break;
-                    
-                // Add more cases as needed for your specific smell types
-                default:
-                    // For unknown types, show any additional properties
-                    Object.keys(smell).forEach(key => {
-                        if (!['type', 'row', 'column_start', 'column_end', 'explanation', 'suggestion', 'circuit_name'].includes(key)) {
-                            config.push({
-                                label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                                value: smell[key]
-                            });
-                        }
-                    });
-            }
-            
-            return config;
-        }
-
+       
         // Get severity class based on smell type or properties
         function getSeverityClass(smell) {
             // You can customize this logic based on your smell types
