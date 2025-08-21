@@ -9,7 +9,7 @@
       "Description": "Keeping the coherence of a quantum excited state is technologically difficult. Hence, initially one should keep it in its ground state (i.e., in state |0) as long as possible.",
       "Detector": {
         "default_values": {
-          "max_distanze": 2
+          "max_distance": 2
         },
         "custom_values": {}
       }
@@ -20,7 +20,7 @@
       "Description": "With current technology it is only possible to ensure the correctness of a state for very short periods of time. Having idle qubits for too long enhance the loss of quantum information that may jeopardize the results of a quantum circuit",
       "Detector": {
         "default_values": {
-          "max_distanze":2
+          "max_distance":2
         },
         "custom_values": {}
       }

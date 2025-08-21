@@ -38,8 +38,8 @@ class IMDetector(Detector):
                                 circuit_name=circuit_name,
                                 qubit=qubit,
                                 row=op.get('row'),
-                                column_start=op.get('column_start'),
-                                column_end=op.get('column_end'),
+                                column_start=op.get('column_start')+1,
+                                column_end=op.get('column_end')+1,
                                 explanation="",
                                 suggestion=""
                             )

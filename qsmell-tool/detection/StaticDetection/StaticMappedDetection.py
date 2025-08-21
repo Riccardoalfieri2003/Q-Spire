@@ -3289,6 +3289,7 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
 
             ]}
 
+    """
     # ============ IMPORT ERRORS ============
     if err_type in ['ImportError', 'ModuleNotFoundError']:
         module_match = re.match(r"No module named '(\w+)'", err_msg)
@@ -3322,6 +3323,7 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
                 
                 # If import is successful, continue without adding any fix
                 return None  # or however you indicate "no action needed"
+    """
     
     # ============ LOOKUP ERRORS ============
     if err_type == 'IndexError':

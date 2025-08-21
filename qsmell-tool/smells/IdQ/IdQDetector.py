@@ -18,7 +18,7 @@ class IdQDetector(Detector):
         smells = []
 
         circuits = analyze_quantum_file(file)
-        max_distance = get_detector_option("IdQ", "max_distanze", fallback=2)
+        max_distance = get_detector_option("IdQ", "max_distance", fallback=2)
 
         for circuit_name, ops in circuits.items():
             last_op_index = {}
@@ -26,8 +26,8 @@ class IdQDetector(Detector):
                 op_name = op.get('operation_name')
                 qubits = op.get('qubits_affected', [])
                 row = op.get('row')
-                col_start = op.get('column_start')
-                col_end = op.get('column_end')
+                col_start = op.get('column_start')+1
+                col_end = op.get('column_end')+1
 
                 if not qubits:
                     continue
