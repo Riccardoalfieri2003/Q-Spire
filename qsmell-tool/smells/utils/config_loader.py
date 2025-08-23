@@ -18,3 +18,15 @@ def get_detector_option(smell_name, option, fallback=None):
         )
     except KeyError:
         return fallback
+
+def get_api_key(fallback=None):
+    try:
+        api_key=CONFIG["API_KEY"]
+        return api_key
+    except: return fallback
+
+def get_llm_model(fallback=None):
+    try:
+        model=CONFIG["LLM_model"]
+        return model
+    except: return fallback

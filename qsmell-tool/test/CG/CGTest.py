@@ -1,8 +1,8 @@
 from smells.Detector import Detector
 from smells.CG.CGDetector import CGDetector
 from smells.CG.CG import CG
-
-
+from smells.Explainer import Explainer
+from smells.CG.CGExplainer import CGExplainer
 
 
 def test_detector():
@@ -21,8 +21,19 @@ def test_detector():
     detector = Detector(CG)
     smel=detector.detect(file)
 
+
+
     for smell in smel:
-        print(smell.as_dict())
+        explanation = Explainer.explain(smell)
+
+        print(explanation)
+
+        
+        
+        break
+        
+    
+
 
 if __name__ == "__main__":
     test_detector()

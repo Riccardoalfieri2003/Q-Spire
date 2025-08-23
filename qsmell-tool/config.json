@@ -1,5 +1,6 @@
 {
   "API_KEY": "your-api-key-here",
+  "LLM_model": "deepseek/deepseek-r1-distill-llama-70b:free",
 
   "_comment": "DEFAULT VALUES (default_values) SHOULD NOT BE MODIFIED",
   "Smells": {
