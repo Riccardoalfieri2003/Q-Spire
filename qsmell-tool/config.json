@@ -1,5 +1,5 @@
 {
-  "API_KEY": "your-api-key-here",
+  "API_KEY": "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",
   "LLM_model": "deepseek/deepseek-r1-distill-llama-70b:free",
 
   "_comment": "DEFAULT VALUES (default_values) SHOULD NOT BE MODIFIED",
@@ -43,7 +43,7 @@
 
 
     "CG": {
-      "Name": " Use of Customized Gates",
+      "Name": "Use of Customized Gates",
       "Description": "Any customized gate is decomposable into built-in operators of the framework. This decomposition requires a substantial higher number of operators when compared to the equivalent solution made exclusively of built-in operators.",
       "Detector": {
         "default_values": {

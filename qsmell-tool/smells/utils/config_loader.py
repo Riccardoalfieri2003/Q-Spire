@@ -30,3 +30,15 @@ def get_llm_model(fallback=None):
         model=CONFIG["LLM_model"]
         return model
     except: return fallback
+
+def get_smell_name(smell_type, fallback="None"):
+    try:
+        name=CONFIG["Smells"][smell_type]["Name"]
+        return name
+    except: return fallback
+
+def get_smell_description(smell_type, fallback="None"):
+    try:
+        name=CONFIG["Smells"][smell_type]["Description"]
+        return name
+    except: return fallback
