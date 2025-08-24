@@ -1,11 +1,11 @@
 from smells.Explainer import Explainer
-from smells.CG.CG import CG
+from smells.LPQ.LPQ import LPQ
 from smells.utils.config_loader import get_smell_name, get_smell_description
 from smells.utils.read_code import get_specific_line, get_adjacent_lines
 
 
 
-smell_type="CG"
+smell_type="LPQ"
 name=get_smell_name(smell_type, "Name")
 description = get_smell_description(smell_type, "Description")
 
@@ -19,26 +19,16 @@ end_prompt="Explain each of these previuos steps, as if the user that is reading
 
 
 
-@Explainer.register(CG)
-class CGExplainer(Explainer):
+@Explainer.register(LPQ)
+class LPQExplainer(Explainer):
     
     def get_prompt(self, code, smell):
 
-        introduction_specific_prompt="We have this smell if there's any occurrences of UnitaryGate,  HamiltonianGate or SingleQubitUnitary gate invoked with a matrix as input"
+        introduction_specific_prompt="We have this smell if there's any calls to the transpile function without the parameter initial layout"
 
         code_prompt=f"This is just a snippet of the code we're working on:\n {get_adjacent_lines(code, smell.row, 10, 0)}\n\n\n"
 
-        smell_prompt=f"""Inside the code the user is writing there's a {smell_type} smell.\n"""
-        smell_prompt+=f"The smell is situated on the row {smell.row}, on this specific line {get_specific_line(code,smell.row)}.\n"
-
-        """
-        if smell.column_start is not None and smell.column_end is not None:
-            smell_prompt+=f"To be more precise, the smell happens between in this exact part of the line: { get_specific_line(code,smell.row)[smell.column_start:smell.column_end] }\n"
-        """
-
-        smell_prompt+=f"We have the smell because we have a call on {smell.matrix}"
-        if smell.qubits is not None: smell_prompt+=" on the qubits:{smell.qubits}\n"
-        else: smell_prompt+="\n"
+        smell_prompt=""
 
 
 
@@ -48,28 +38,30 @@ class CGExplainer(Explainer):
         example_introduction_prompt="In the following code is provided an example of smelly code with this particular smell.\n"
 
         example_smell_promt="""
-        from qiskit import QuantumCircuit
-        from qiskit.circuit.library import unitary
+        from qiskit import QuantumCircuit, transpile
+        from qiskit.providers.fake_provider import FakeVigo
+        qc=QuantumCircuit(3,3)
+        backend = FakeVigo ()
+        qc = transpile (qc, backend)
 
-        qc = QuantumCircuit(2)
-        qc.unitary([1,0],[0,1], [0, 1]) \n
         """
 
         example_introduction_solution_prompt="""
 This is the smelly free verion of the provided code:\n"""
 
         example_solution_promt="""
-        from qiskit import QuantumCircuit
-        from qiskit.circuit.library import unitary
+        from qiskit import QuantumCircuit, transpile
+        from qiskit.providers.fake_provider import FakeVigo
+        qc=QuantumCircuit(3,3)
+        backend = FakeVigo ()
+        qc = transpile (qc, backend, initial_layout=[3, 4, 2])
 
-        qc = QuantumCircuit(2)
-        qc.id([0,1]) \n
         """
 
         example_explanation=f"""
-In this example, we can see that there's a call to the unitary function, passing, inside its parameters, the identity matrix and the list of affected qubits.
-The solution, which is smelly free, eliminates the unitary call function and uses the id qiskit function, which manipulates the probability of the qubits just like the identity matrix.
-Of course this is just one of the many way to solve a {smell_type} smell, since, as it can be read from the description of the smell, it can happen for different reasons.
+In this example, we can see that there's a call to the transpile method without the initial layout parameter.
+The solution, which is smelly free, adds the initial layout parameter to the method. 
+Of course the initial layout parameter is not always the same, since different backends could have different qubit disposition.
 Use this example just to understand how to solve the smell. Do not cite this inside the answer you'll give.\n"""
 
         example_prompt=example_introduction_prompt+example_smell_promt+example_introduction_solution_prompt+example_solution_promt+example_explanation

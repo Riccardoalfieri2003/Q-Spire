@@ -1,5 +1,5 @@
 {
-  "API_KEY": "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",
+  "API_KEY": "your-api-key",
   "LLM_model": "deepseek/deepseek-r1-distill-llama-70b:free",
 
   "_comment": "DEFAULT VALUES (default_values) SHOULD NOT BE MODIFIED",

@@ -1,7 +1,8 @@
 from smells.Detector import Detector
 from smells.LPQ.LPQDetector import LPQDetector
 from smells.LPQ.LPQ import LPQ
-
+from smells.Explainer import Explainer
+from smells.LPQ.LPQExplainer import LPQExplainer
 
 
 
@@ -17,12 +18,23 @@ def test_detector():
     """
 
     file="test/LPQ/LPQCode.py"
+
+    with open(file, "r") as f:
+        code = f.read()
     
     detector = Detector(LPQ)
-    smel=detector.detect(file)
+    smells=detector.detect(file)
 
-    for smell in smel:
-        print(smell.as_dict())
+    for smell in smells:
+        explanation_generator = Explainer.explain(code, smell)
+        
+        if explanation_generator:
+            for chunk in explanation_generator:  # Iterate over the generator
+                print(chunk, end="", flush=True)
+            print()  # New line after each explanation
+        
+        
+        break
 
 if __name__ == "__main__":
     test_detector()
