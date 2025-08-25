@@ -1,7 +1,7 @@
 from smells.Explainer import Explainer
 from smells.LC.LC import LC
 from smells.utils.config_loader import get_smell_name, get_smell_description
-from smells.utils.read_code import get_specific_line, get_adjacent_lines
+from smells.utils.read_code import get_specific_line, get_adjacent_lines, get_operations
 from smells.utils.config_loader import get_detector_option
 
 
@@ -18,18 +18,6 @@ end_prompt="Explain each of these previuos steps, as if the user that is reading
 
 
 
-
-def get_operations(circuit):
-    rows = []
-    for instr, qargs, cargs in circuit.data:
-        row = f"{instr.name} on qubit {[q._index for q in qargs]}"
-        if cargs:  # if there are classical bits
-            row += f", cargs={[c._index for c in cargs]}"
-        rows.append(row)
-
-    ops_str = "\n".join(rows)
-
-    return ops_str
 
 
 

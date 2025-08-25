@@ -29,7 +29,7 @@ class CGExplainer(Explainer):
         code_prompt=f"This is just a snippet of the code we're working on:\n {get_adjacent_lines(code, smell.row, 10, 0)}\n\n\n"
 
         smell_prompt=f"""Inside the code the user is writing there's a {smell_type} smell.\n"""
-        smell_prompt+=f"The smell is situated on the row {smell.row}, on this specific line {get_specific_line(code,smell.row)}.\n"
+        smell_prompt+=f"The smell is situated on this specific line {get_specific_line(code,smell.row)}.\n"
 
         """
         if smell.column_start is not None and smell.column_end is not None:

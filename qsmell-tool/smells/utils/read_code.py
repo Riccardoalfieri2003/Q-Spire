@@ -21,3 +21,15 @@ def get_adjacent_lines(text: str, row_number: int, upper: int = 1, lower: int = 
 
     result = lines[start:end]
     return "\n".join(result) if as_string else result
+
+def get_operations(circuit):
+    rows = []
+    for instr, qargs, cargs in circuit.data:
+        row = f"{instr.name} on qubit {[q._index for q in qargs]}"
+        if cargs:  # if there are classical bits
+            row += f", cargs={[c._index for c in cargs]}"
+        rows.append(row)
+
+    ops_str = "\n".join(rows)
+
+    return ops_str

@@ -1,11 +1,11 @@
 from smells.Explainer import Explainer
-from smells.IM.IM import IM
+from smells.IQ.IQ import IQ
 from smells.utils.config_loader import get_smell_name, get_smell_description
 from smells.utils.read_code import get_specific_line, get_adjacent_lines, get_operations
 
 
 
-smell_type="IM"
+smell_type="IQ"
 name=get_smell_name(smell_type, "Name")
 description = get_smell_description(smell_type, "Description")
 
@@ -19,19 +19,21 @@ end_prompt="Explain each of these previuos steps, as if the user that is reading
 
 
 
-@Explainer.register(IM)
-class IMExplainer(Explainer):
+@Explainer.register(IQ)
+class IQExplainer(Explainer):
     
     def get_prompt(self, code, smell, method):
 
-        introduction_specific_prompt="We have this smell if there's a non-terminal measurement on a qubit"
+        introduction_specific_prompt="We have this smell if an operation performed on a qubit is a certain number of operations far from the previous operation on the same qubit. More context will be given in the following example."
 
         code_prompt=f"This is just a snippet of the code we're working on:\n {get_adjacent_lines(code, smell.row, 5, 5)}\n\n\n"
 
         smell_prompt=f"""Inside the code the user is writing there's a {smell_type} smell.\n"""
         smell_prompt+=f"The smell is situated on this specific line {get_specific_line(code,smell.row)}.\n"
 
-        smell_prompt+=f"We have the smell because we have a non terminal measurement on the qubit {smell.qubit}."
+        smell_prompt+=f"We have the smell because we have the {smell.operation_name} operation with a distance of {smell.operation_distance} operations from the previou one on the qubit {smell.qubit}."
+
+        smell_prompt+=f"To solve the smell we could add the identity operation (id) on the qubit {smell.qubit} few operations before {smell.operation_name} (but not directly before it), even those operations involve other qubits different from {smell.qubit}. This is just one of the many ways to solve this smell."
 
 
 
@@ -42,15 +44,17 @@ class IMExplainer(Explainer):
 
         example_smell_promt="""
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit 
-qreg_q = QuantumRegister (3, 'q' ) 
-creg_c = ClassicalRegister (2, 'c' ) 
 
-qc = QuantumCircuit (qreg_q, creg_c) 
+qc = QuantumCircuit (2, 2) 
 
-qc.h(qreg_q[0]) 
-qc.measure (qreg_q[0], creg_c[0] ) 
-qc.h(qreg_q[0]) 
-qc.measure (qreg_q[0], creg_c[1])
+qc.h(0) 
+
+qc.h(1) # Operation distance from qubit 0 : 1
+qc.h(1) # Operation distance from qubit 0 : 2
+qc.h(1) # Operation distance from qubit 0 : 3
+qc.h(1) # Operation distance from qubit 0 : 4
+
+qc.h(0) # Total distance operation before re-using qubit 0 : 4
 
         """
 
@@ -60,25 +64,27 @@ This is the smelly free verion of the provided code:\n"""
         example_solution_promt="""
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit 
 
-qreg_q = QuantumRegister (3, 'q' ) 
-creg_c = ClassicalRegister (2, 'c' )
+qc = QuantumCircuit (2, 2) 
 
-qc = QuantumCircuit (qreg_q, creg_c) 
+qc.h(0) 
 
-qc.h(qreg_q[0])
-qc.cx(qreg_q[0], qreg_q[1]) 
+qc.h(1) # Operation distance from qubit 0 : 1
+qc.h(1) # Operation distance from qubit 0 : 2
 
-qc.h(qreg_q[0]) 
+qc.h(0) # Total distance operation before re-using qubit 0 : 2
 
-qc.measure(qreg_q[0], creg_c[0]) 
-qc.measure(qreg_q[1], creg_c[1])
+qc.h(1) # Operation distance from qubit 0 : 1
+qc.h(1) # Operation distance from qubit 0 : 2
+
+qc.h(0) # Total distance operation before re-using qubit 0 : 2
 
         """
 
         example_explanation=f"""
-In this example (the smelly code), we can see that there's an intermediate measurement on qubit 0.
-The solution, which is smelly free, "copied" the value of the qubit 0 onto qubit 1 using a cx gate (it is not a complete copy, but works in this case).
-This is the main way (and easy) to solve the smell. Remember! It is not enough to remove the measurement. It must be substitued with the cx gate to copy the qubit's value, as shown in the example.
+In this example (the smelly code), we can see that the user re-uses teh qubit 0 after performing other 4 operations (in this example we suppose that 3 is the maximum to consider the code not smelly).
+The solution, which is smelly free, consists in using the identity matrix on the qubit 0 before doing other operations that increase the distance on qubit 0.
+Of course this is just one of the many way to solve a {smell_type} smell, since it could be resolved by using other operations too that do not alter the probability of the qubit (such as measurements if the operation is terminal).
+You have to secure that the operation on the qubit is actually performed not strictly before the smelly operation, since nothing would change. The fix must be done before it.
 Use this example just to understand how to solve the smell. Do not cite this inside the answer you'll give.\n"""
 
         example_prompt=example_introduction_prompt+example_smell_promt+example_introduction_solution_prompt+example_solution_promt+example_explanation
@@ -96,11 +102,9 @@ Use this example just to understand how to solve the smell. Do not cite this ins
 
         method_prompt=""
         if method=="static":
-            method_prompt="Consider that this circuit we're working on is based off a simulation of a certain code. So consider that same errors could occur during the parsing of the circuit itself."
+            method_prompt="Consider that this circuit we're working on is based off a sIQulation of a certain code. So consider that same errors could occur during the parsing of the circuit itself."
 
 
 
         prompt=introduction_prompt+"\n"+introduction_specific_prompt+"\n"+method_prompt+"\n"+example_prompt+"\n"+code_prompt+"\n"+smell_prompt+"\n"+explanation_suggestion_promt
         return prompt
-
-        
