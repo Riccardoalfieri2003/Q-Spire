@@ -13,11 +13,11 @@ backend = MyFakeBackend(
     t2_values=[120e-6, 130e-6, 140e-6, 150e-6, 160e-6]
 )
 
-qc = QuantumCircuit(1)
+"""qc = QuantumCircuit(1)
 qc.h(0)
 
 backend.run(qc)
-
+"""
 
 qc2=QuantumCircuit(3)
 qc2.h(0)

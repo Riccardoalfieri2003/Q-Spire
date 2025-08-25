@@ -18,26 +18,26 @@ class Explainer:
         return decorator
     
     @classmethod
-    def get_explainer(cls, code, smell):
+    def get_explainer(cls, code, smell, method):
         explainer_class = cls._explainers.get(smell.__class__)
         if explainer_class:
             return explainer_class()  # Return an instance
         return None
     
     @classmethod
-    def explain(cls, code, smell):
+    def explain(cls, code, smell, method):
         """Class method that gets explainer and calls explain in one step"""
-        explainer = cls.get_explainer(code, smell)
+        explainer = cls.get_explainer(code, smell, method)
         if explainer:
-            return explainer._explain(code, smell)  # Call the instance method
+            return explainer._explain(code, smell, method)  # Call the instance method
         return None
     
-    def get_prompt(self, code, smell_instance):
+    def get_prompt(self, code, smell_instance, method):
         """This should be implemented by each specific explainer"""
         raise NotImplementedError("Subclasses must implement get_prompt method")
     
-    def _explain(self, code, smell_instance):
-        prompt = self.get_prompt(code, smell_instance)
+    def _explain(self, code, smell_instance, method):
+        prompt = self.get_prompt(code, smell_instance, method)
 
         #print(prompt)
         #return

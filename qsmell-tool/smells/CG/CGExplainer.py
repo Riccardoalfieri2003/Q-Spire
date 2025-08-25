@@ -22,7 +22,7 @@ end_prompt="Explain each of these previuos steps, as if the user that is reading
 @Explainer.register(CG)
 class CGExplainer(Explainer):
     
-    def get_prompt(self, code, smell):
+    def get_prompt(self, code, smell, method):
 
         introduction_specific_prompt="We have this smell if there's any occurrences of UnitaryGate,  HamiltonianGate or SingleQubitUnitary gate invoked with a matrix as input"
 

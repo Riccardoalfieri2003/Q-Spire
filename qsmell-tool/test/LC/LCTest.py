@@ -1,6 +1,8 @@
 from smells.Detector import Detector
 from smells.LC.LCDetector import LCDetector
 from smells.LC.LC import LC
+from smells.Explainer import Explainer
+from smells.LC.LCExplainer import LCExplainer
 
 def test_detector():
     """
@@ -14,12 +16,24 @@ def test_detector():
     """
 
     file="test/LC/LCCode.py"
+
+    with open(file, "r") as f:
+        code = f.read()
     
     detector = Detector(LC)
-    smel=detector.detect(file)
+    smells=detector.detect(file)
 
-    for smell in smel:
+    for smell in smells:
+
         print(smell.as_dict())
+        explanation_generator = Explainer.explain(code, smell, 'dynamic')
+        
+        if explanation_generator:
+            for chunk in explanation_generator:  # Iterate over the generator
+                print(chunk, end="", flush=True)
+            print()  # New line after each explanation
+        
+        break
 
 if __name__ == "__main__":
     test_detector()

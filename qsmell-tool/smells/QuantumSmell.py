@@ -1,5 +1,6 @@
 class QuantumSmell:
-    def __init__(self, type_: str, row: int, column_start: int,  column_end: int, explanation=None, suggestion=None, circuit_name=None):
+
+    def __init__(self, type_: str, row: int = None, column_start: int = None,  column_end: int = None, explanation=None, suggestion=None, circuit_name=None, circuit: dict=None):
         self.type = type_
         self.row = row
         self.column_start = column_start
@@ -7,6 +8,7 @@ class QuantumSmell:
         self.explanation = explanation
         self.suggestion = suggestion
         self.circuit_name = circuit_name 
+        self.circuit=circuit
 
     def set_row(self, row: str):
         self.row = row
@@ -26,6 +28,9 @@ class QuantumSmell:
     def set_circuit_name(self, circuit_name: str):
         self.circuit_name = circuit_name
 
+    def set_circuit(self, circuit:dict):
+        self.circuit=circuit
+
     def as_dict(self):
         return {
             'type': self.type,
@@ -34,5 +39,6 @@ class QuantumSmell:
             'column_end': self.column_end,
             'explanation': self.explanation,
             'suggestion': self.suggestion,
-            'circuit_name': self.circuit_name
+            'circuit_name': self.circuit_name,
+            'circuit': self.circuit
         }

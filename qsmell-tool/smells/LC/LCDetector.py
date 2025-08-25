@@ -122,6 +122,8 @@ def detect_with_new_analyzer(self, file):
     circuit_backend_mappings = map_circuits_to_backends(circuits, backends, runs)
     
     for circuit, backend, circuit_name in circuit_backend_mappings:
+
+        print(circuit)
         try:
             # Get backend properties
             backend_properties = backend.properties()
@@ -153,7 +155,8 @@ def detect_with_new_analyzer(self, file):
                     backend=backend_class_name,
                     circuit_name=circuit_name,
                     explanation="",
-                    suggestion=""
+                    suggestion="",
+                    circuit_operations=circuit
                 )
                 
                 smells.append(smell)
@@ -320,10 +323,10 @@ class LCDetector(Detector):
                 gate_name = "CustomGate"
                 max_error = error_threshold  # Retrieved from config
 
-                l = max_operations_per_qubit(circuit)
-                c = max_parallelism(circuit)
+                lenght_op = max_operations_per_qubit(circuit)
+                parallel_op = max_parallelism(circuit)
 
-                likelihood=math.pow(1-max_error,l*c)
+                likelihood=math.pow(1-max_error,lenght_op*parallel_op)
 
                 # Heuristic thresholds — adjust as needed
                 if likelihood<threshold:
@@ -331,12 +334,13 @@ class LCDetector(Detector):
                     smell = LC(
                         likelihood=likelihood,
                         error={gate_name:max_error},
-                        l=l,
-                        c=c,
+                        lenght_op=lenght_op,
+                        parallel_op=parallel_op,
                         backend="Custom Backend",
                         circuit_name=circuit_name,  # Use the captured name
                         explanation="",
-                        suggestion=""
+                        suggestion="",
+                        circuit=circuit
                     )
 
                     smells.append(smell)

@@ -27,7 +27,7 @@ def test_detector():
 
 
     for smell in smells:
-        explanation_generator = Explainer.explain(code, smell)
+        explanation_generator = Explainer.explain(code, smell, 'dynamic')
         
         if explanation_generator:
             for chunk in explanation_generator:  # Iterate over the generator

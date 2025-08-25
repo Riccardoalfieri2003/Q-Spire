@@ -29,13 +29,13 @@
 
     "LC": {
       "Name": "Long Circuit",
-      "Description": "Unitary gates and measurements are prone to errors (specially due to quantum noise). The higher the depth of the circuit and/or wider the circuit, the higher is the probability of affecting a quantum circuit’s intended behavior.",
+      "Description": "Unitary gates and measurements are prone to errors (specially due to quantum noise). The higher the depth of the circuit and/or wider the circuit, the higher is the probability of affecting a quantum circuit's intended behavior.",
       "Detector": {
         "default_values": {
           "threshold":0.5
         },
         "custom_values": {
-          "gate_error": 0.03512
+          "gate_error": 0.6
         }
       }
     },

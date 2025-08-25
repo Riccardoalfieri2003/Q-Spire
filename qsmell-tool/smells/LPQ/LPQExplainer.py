@@ -22,7 +22,7 @@ end_prompt="Explain each of these previuos steps, as if the user that is reading
 @Explainer.register(LPQ)
 class LPQExplainer(Explainer):
     
-    def get_prompt(self, code, smell):
+    def get_prompt(self, code, smell, method):
 
         introduction_specific_prompt="We have this smell if there's any calls to the transpile function without the parameter initial layout"
 
