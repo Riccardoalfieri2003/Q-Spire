@@ -1,7 +1,8 @@
 from smells.Detector import Detector
 from smells.IM.IMDetector import IMDetector
 from smells.IM.IM import IM
-
+from smells.Explainer import Explainer
+from smells.IM.IMExplainer import IMExplainer
 
 
 
@@ -18,11 +19,27 @@ def test_detector():
 
     file="test/IM/IMCode.py"
         
-    detector = Detector(IM)
-    smel=detector.detect(file)
+    with open(file, "r") as f:
+        code = f.read()
 
-    for smell in smel:
+    detector = Detector(IM)
+    smells=detector.detect(file)
+
+
+
+    for smell in smells:
+
         print(smell.as_dict())
+
+        explanation_generator = Explainer.explain(code, smell, 'dynamic')
+        
+        if explanation_generator:
+            for chunk in explanation_generator:  # Iterate over the generator
+                print(chunk, end="", flush=True)
+            print()  # New line after each explanation
+        
+        
+        break
 
 if __name__ == "__main__":
     test_detector()
