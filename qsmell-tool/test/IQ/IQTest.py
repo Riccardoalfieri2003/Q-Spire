@@ -32,6 +32,7 @@ def test_detector():
 
         print(smell.as_dict())
 
+        """
         explanation_generator = Explainer.explain(code, smell, 'dynamic')
         
         if explanation_generator:
@@ -40,7 +41,7 @@ def test_detector():
             print()  # New line after each explanation
         
         
-        break
+        break"""
 
 if __name__ == "__main__":
     test_detector()

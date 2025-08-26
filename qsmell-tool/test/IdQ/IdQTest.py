@@ -25,7 +25,7 @@ def test_detector():
     detector = Detector(IdQ)
     smells=detector.detect(file)
 
-    return
+    
 
     for smell in smells:
 
@@ -33,7 +33,7 @@ def test_detector():
 
         
 
-        explanation_generator = Explainer.explain(code, smell, 'dynamic')
+        """explanation_generator = Explainer.explain(code, smell, 'dynamic')
         
         if explanation_generator:
             for chunk in explanation_generator:  # Iterate over the generator
@@ -41,7 +41,7 @@ def test_detector():
             print()  # New line after each explanation
         
         
-        break
+        break"""
 
 if __name__ == "__main__":
     test_detector()
