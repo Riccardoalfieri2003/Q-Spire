@@ -87,7 +87,7 @@ Use this example just to understand how to solve the smell. Do not cite this ins
 
 
 
-        prompt=introduction_prompt+"\n"+introduction_specific_prompt+"\n"+example_prompt+"\n"+code_prompt+"\n"+smell_prompt+"\n"+explanation_suggestion_promt
+        prompt=introduction_prompt+"\n"+introduction_specific_prompt+"\n"+example_prompt+"\n"+code_prompt+"\n"+smell_prompt+"\n"+explanation_suggestion_promt+"\n"+end_prompt
         return prompt
 
         

@@ -95,7 +95,7 @@ In this specific smell, you don't have to completely solve it if you can't, we h
 
 
 
-        prompt=introduction_prompt+"\n"+introduction_specific_prompt+"\n"+method_prompt+"\n"+example_prompt+"\n"+explanation_suggestion_promt
+        prompt=introduction_prompt+"\n"+introduction_specific_prompt+"\n"+method_prompt+"\n"+example_prompt+"\n"+explanation_suggestion_promt+"\n"+end_prompt
         return prompt
 
         
