@@ -1,11 +1,11 @@
 from smells.QuantumSmell import QuantumSmell
 
 class NC(QuantumSmell):
-    def __init__(self, 
+    def __init__(self, circuit_name=None,
                  run_calls=None, execute_calls=None, assign_parameter_calls=None, bind_parameter_calls=None,
                  explanation=None, suggestion=None):
         
-        super().__init__("NC", row=None, column_start=None, column_end=None, explanation=explanation, suggestion=suggestion)
+        super().__init__("NC", row=None, column_start=None, column_end=None, explanation=explanation, suggestion=suggestion, circuit_name=circuit_name)
 
         self.run_calls = run_calls if run_calls else {}
         self.execute_calls = execute_calls if execute_calls else {}

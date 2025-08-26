@@ -30,6 +30,13 @@ for theta_val in theta_range:
 
 
 
+
+
+
+
+
+# Smell free code
+
 from qiskit import transpile
 from qiskit.circuit import Parameter
 theta=Parameter('0')
