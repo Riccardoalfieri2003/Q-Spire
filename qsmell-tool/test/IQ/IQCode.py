@@ -40,8 +40,3 @@ qc.z(1)
 qc.z(1)
 qc.h(2)
 """
-
-import matplotlib.pyplot as plt
-
-fig = qc.draw(output="mpl")
-plt.show()
