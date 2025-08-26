@@ -2,6 +2,9 @@ from smells.Detector import Detector
 from smells.ROC.ROCDetector import ROCDetector
 from smells.ROC.ROC import ROC
 
+from smells.Explainer import Explainer
+from smells.ROC.ROCExplainer import ROCExplainer
+
 def test_detector():
     """
         Test the custom gate detector with example code.
@@ -15,11 +18,24 @@ def test_detector():
     
     file="test/ROC/ROCCode.py"
     
-    detector = Detector(ROC)
-    smel=detector.detect(file)
+    with open(file, "r") as f:
+        code = f.read()
 
-    for smell in smel:
-        print(smell.as_dict())
+    detector = Detector(ROC)
+    smells=detector.detect(file)
+
+
+
+    for smell in smells:
+        explanation_generator = Explainer.explain(code, smell, 'dynamic')
+        
+        if explanation_generator:
+            for chunk in explanation_generator:  # Iterate over the generator
+                print(chunk, end="", flush=True)
+            print()  # New line after each explanation
+        
+        
+        break
 
 if __name__ == "__main__":
     test_detector()

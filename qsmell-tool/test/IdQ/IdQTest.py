@@ -25,10 +25,13 @@ def test_detector():
     detector = Detector(IdQ)
     smells=detector.detect(file)
 
+    return
 
     for smell in smells:
 
         print(smell.as_dict())
+
+        
 
         explanation_generator = Explainer.explain(code, smell, 'dynamic')
         

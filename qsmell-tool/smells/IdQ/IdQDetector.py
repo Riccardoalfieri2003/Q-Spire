@@ -18,6 +18,7 @@ class IdQDetector(Detector):
         smells = []
 
         circuits = analyze_quantum_file(file)
+
         max_distance = get_detector_option("IdQ", "max_distance", fallback=2)
 
         for circuit_name, ops in circuits.items():

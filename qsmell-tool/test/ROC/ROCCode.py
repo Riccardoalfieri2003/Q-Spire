@@ -12,7 +12,8 @@ for i in range (3):
     for j in range (3):
         qc.append (hadamard, [j])
     for j in range (3) :
-        qc.append (measureQubit, [j], [j])
+        #qc.append (measureQubit, [j], [j])
+        qc.measure([j],[j])
     qc.barrier ()
 
 for j in range(9):

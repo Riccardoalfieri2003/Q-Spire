@@ -23,4 +23,12 @@ qc.p(pi / 8, qreg_q[2])
 qc.z(qreg_q[2])
 qc.s(qreg_q[2])
 
-qc.measure_all(add_bits=False) #Da rimuovere per non avere smell
+qc.measure_all(add_bits=False)
+
+
+
+
+import matplotlib.pyplot as plt
+
+fig = qc.draw(output="mpl")
+plt.show()
