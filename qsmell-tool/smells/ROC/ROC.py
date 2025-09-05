@@ -1,7 +1,7 @@
 from smells.QuantumSmell import QuantumSmell
 
 class ROC(QuantumSmell):
-    def __init__(self, operations, repetitions, rows=None, circuit_name=None):
+    def __init__(self, operations, repetitions, rows=None, circuit_name=None, circuit=None):
         # Initialize base QuantumSmell fields with type='ROC' and no row/col info
         super().__init__(
             type_="ROC",
@@ -10,7 +10,8 @@ class ROC(QuantumSmell):
             column_end=None,
             explanation="",
             suggestion="",
-            circuit_name=circuit_name
+            circuit_name=circuit_name,
+            circuit=circuit
         )
         # ROC-specific attributes
         self.rows = rows if rows is not None else []

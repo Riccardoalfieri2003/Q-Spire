@@ -3,7 +3,7 @@ from smells.QuantumSmell import QuantumSmell
 class IQ(QuantumSmell):
 
     def __init__(self, row: int, column_start: int, column_end: int, operation_distance: int, qubit: int, operation_name: str,
-                 explanation=None, suggestion=None, circuit_name=None):
+                 explanation=None, suggestion=None, circuit_name=None, circuit=None):
         super().__init__(
             type_='IQ',
             row=row,
@@ -11,7 +11,8 @@ class IQ(QuantumSmell):
             column_end=column_end,
             explanation=explanation,
             suggestion=suggestion,
-            circuit_name=circuit_name
+            circuit_name=circuit_name,
+            circuit=circuit
         )
         self.operation_distance = operation_distance
         self.qubit=qubit

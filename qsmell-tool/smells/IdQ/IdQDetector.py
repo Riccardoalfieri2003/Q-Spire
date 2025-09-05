@@ -134,7 +134,7 @@ def detect_iq_smell_from_batches(batches, max_distance, circuit_name):
             smell = IdQ(
                 row=second_op['row'],
                 column_start=second_op['column_start'],
-                column_end=second_op['column_end'],
+                column_end=second_op['column_end']+1,
                 circuit_name=circuit_name,
                 qubit=qubit,
                 operation_distance=distance,

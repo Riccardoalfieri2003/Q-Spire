@@ -24,6 +24,10 @@ class Explainer:
             return explainer_class()  # Return an instance
         return None
     
+    def get_prompt(self, code, smell_instance, method):
+        """This should be implemented by each specific explainer"""
+        raise NotImplementedError("Subclasses must implement get_prompt method")
+    
     @classmethod
     def explain(cls, code, smell, method):
         """Class method that gets explainer and calls explain in one step"""
@@ -31,10 +35,6 @@ class Explainer:
         if explainer:
             return explainer._explain(code, smell, method)  # Call the instance method
         return None
-    
-    def get_prompt(self, code, smell_instance, method):
-        """This should be implemented by each specific explainer"""
-        raise NotImplementedError("Subclasses must implement get_prompt method")
     
     def _explain(self, code, smell_instance, method):
         prompt = self.get_prompt(code, smell_instance, method)

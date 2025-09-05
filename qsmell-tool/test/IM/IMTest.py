@@ -38,7 +38,6 @@ def test_detector():
                 print(chunk, end="", flush=True)
             print()  # New line after each explanation
         
-        
         break
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ def test_detector():
     detector = Detector(IdQ)
     smells=detector.detect(file)
 
+    print(type(smells))
     
 
     for smell in smells:

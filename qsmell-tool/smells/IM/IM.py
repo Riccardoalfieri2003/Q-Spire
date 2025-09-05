@@ -4,7 +4,7 @@ class IM(QuantumSmell):
     
     def __init__(self, circuit_name: str, qubit: int,
                  row: int = None, column_start: int = None, column_end: int = None, 
-                 explanation: str = None, suggestion: str = None):
+                 explanation: str = None, suggestion: str = None, circuit=None):
         super().__init__(
             type_='IM',
             row=row,
@@ -12,7 +12,8 @@ class IM(QuantumSmell):
             column_end=column_end,
             explanation=explanation,
             suggestion=suggestion,
-            circuit_name=circuit_name
+            circuit_name=circuit_name,
+            circuit=circuit
         )
         self.qubit = qubit
 

@@ -1,8 +1,8 @@
 from smells.QuantumSmell import QuantumSmell
 
 class CG(QuantumSmell):
-    def __init__(self, row, col_start, col_end, matrix, qubits, circuit_name=None, gate_type=None, explanation=None, suggestion=None):
-        super().__init__("CG", row, col_start, col_end, explanation, suggestion, circuit_name)
+    def __init__(self, row, col_start, col_end, matrix, qubits, circuit_name=None, gate_type=None, explanation=None, suggestion=None, circuit=None):
+        super().__init__("CG", row, col_start, col_end, explanation, suggestion, circuit_name, circuit=circuit)
         self.matrix = matrix
         self.qubits = qubits
         self.gate_type = gate_type

@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QSmell Tool</title>
@@ -172,6 +175,12 @@
             padding: 2.5rem;
             box-shadow: var(--shadow);
             border: 1px solid var(--border-color);
+        }
+
+        [data-theme="dark"] {
+            --surface-color: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            --border-color: #374151;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
 
         .section-title {
@@ -1048,8 +1057,12 @@ body.dark-mode .smell-detail,
 
 
     </style>
+
+     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src vscode-resource:; style-src 'unsafe-inline'; script-src vscode-resource: 'unsafe-inline';">
+
 </head>
 <body>
+    
     <div class="theme-toggle" onclick="toggleTheme()">
         <svg class="sun-icon" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="5"/>
@@ -1180,7 +1193,144 @@ body.dark-mode .smell-detail,
         </div>
     </div>
 
+
+
+    <script>const vscode = acquireVsCodeApi();</script>
+
+    <!--
+    <script type="module">
+    console.log('=== FILE PATH DEBUGGING ===');
+    
+    // Current file info
+    const currentUrl = new URL(import.meta.url);
+    console.log('Current file URL:', currentUrl.href);
+    console.log('Protocol:', currentUrl.protocol);
+    console.log('Full path (encoded):', currentUrl.pathname);
+    
+    // If it's a file:// protocol, we can try to decode it
+    if (currentUrl.protocol === 'file:') {
+        try {
+            // Decode URI components to see better path
+            const decodedPath = decodeURIComponent(currentUrl.pathname);
+            console.log('Decoded path:', decodedPath);
+            
+            // For Windows paths, they might start with /C:/ instead of C:/
+            if (decodedPath.startsWith('/') && decodedPath.includes(':/')) {
+                console.log('Windows path detected:', decodedPath.substring(1));
+            }
+        } catch (e) {
+            console.log('Could not decode path');
+        }
+    }
+    
+    // Test if we're in the right directory by checking for other files
+    const filesToTest = [
+        './',
+        '../',
+        '../../',
+        'extension.js',
+        'out/',
+        'out/extension.js'
+    ];
+    
+    console.log('Testing relative paths:');
+    
+    filesToTest.forEach(async (relativePath) => {
+        const testUrl = new URL(relativePath, currentUrl.href);
+        try {
+            const response = await fetch(testUrl.href);
+            console.log(`📁 ${relativePath} -> ${response.status} (${response.statusText})`);
+        } catch (error) {
+            console.log(`❌ ${relativePath} -> Cannot access (${error.message})`);
+        }
+    });
+</script>
+-->
+
+<script>
+        
+        // ✅ You can now access the absolute path
+        console.log('Extension absolute path:', window.extensionAbsolutePath);
+        console.log('Extension.js URI:', window.extensionJsUri);
+        
+        // Or request it via message if you prefer
+        vscode.postMessage({
+            command: 'getExtensionPath'
+        });
+        
+        // Listen for the response
+        window.addEventListener('message', event => {
+            const message = event.data;
+            if (message.command === 'extensionPath') {
+                console.log('Extension path received:', message.path);
+                console.log('Extension.js URI:', message.extensionJsUri);
+            }
+        });
+    </script>
+
+<script>
+    
+    let waitingForPythonResult = false;
+    let pythonResultResolver = null;
+
+    function callPythonFunction(filePath, smell, method) {
+        return new Promise((resolve, reject) => {
+            waitingForPythonResult = true;
+            pythonResultResolver = resolve;
+            
+            // Send message to extension
+            vscode.postMessage({
+                command: 'callPythonExplain',
+                filePath: filePath,
+                smell: smell,
+                method: method
+            });
+            
+            // Set timeout
+            setTimeout(() => {
+                if (waitingForPythonResult) {
+                    waitingForPythonResult = false;
+                    pythonResultResolver = null;
+                    reject(new Error('Python function call timed out'));
+                }
+            }, 60000);
+        });
+    }
+
+    
+    // Update your message listener:
+    window.addEventListener('message', event => {
+        const message = event.data;
+        switch (message.command) {
+            case 'pythonExplainResult':
+                console.log('Python result:', message.data);
+                if (waitingForPythonResult && pythonResultResolver) {
+                    waitingForPythonResult = false;
+                    pythonResultResolver(message.data);
+                    pythonResultResolver = null;
+                }
+                break;
+            case 'pythonExplainError':
+                console.error('Python error:', message.error);
+                if (waitingForPythonResult && pythonResultResolver) {
+                    waitingForPythonResult = false;
+                    pythonResultResolver = null;
+                    // Handle error appropriately
+                }
+                break;
+        }
+    });
+
+</script>
+
+
     <script>
+
+        // Global variable to store current smells for action buttons
+        let currentSmells = [];
+        let filePath="";
+        let current_method="";
+
         // Theme toggle functionality
         function toggleTheme() {
             const body = document.body;
@@ -1269,13 +1419,13 @@ body.dark-mode .smell-detail,
         }
 
         // VSCode API reference (will be available in webview)
-        let vscode;
+        //let vscode;
         let currentFilePath = null;
         let currentFileName = null;
 
         // Initialize VSCode API
         try {
-            vscode = acquireVsCodeApi();
+            //vscode = acquireVsCodeApi();
             console.log('VSCode API acquired successfully');
         } catch (error) {
             console.error('Failed to acquire VSCode API:', error);
@@ -1394,44 +1544,7 @@ body.dark-mode .smell-detail,
             analyzeBtn.disabled = true;
         }
 
-        /*
-       function showAnalysisResults(data) {
-            console.log('showAnalysisResults called with:', data);
-            
-            const statusSection = document.getElementById('analysis-status');
-            const loadingSpinner = document.getElementById('loading-spinner');
-            const successCheckmark = document.getElementById('success-checkmark');
-            const statusText = document.getElementById('status-text');
-            const analyzeBtn = document.getElementById('analyze-btn');
-            
-            // Update status to success
-            loadingSpinner.style.display = 'none';
-            successCheckmark.style.display = 'block';
-            statusText.textContent = 'Smells Detected. Go to Results and Analysis section';
-            
-            // Re-enable analyze button after a delay
-            setTimeout(() => {
-                analyzeBtn.disabled = false;
-                updateAnalyzeButton();
-            }, 1000);
-            
-            // Prepare data for updateResultsDisplay
-            const resultsData = {
-                fileName: data.fileName,
-                method: data.method,
-                smells: data.results // This might need adjustment based on your Python output structure
-            };
-            
-            console.log('Calling updateResultsDisplay with:', resultsData);
-            
-            // Update results display with proper structure
-            updateResultsDisplay(resultsData);
-            
-            // Hide status section after 3 seconds
-            setTimeout(() => {
-                statusSection.style.display = 'none';
-            }, 3000);
-        }*/
+        
 
         function showAnalysisResults(data) {
             console.log('showAnalysisResults called with:', data);
@@ -1459,6 +1572,7 @@ body.dark-mode .smell-detail,
                 method: data.method,
                 smells: data.results
             };
+
             
             console.log('Calling updateResultsDisplay with:', resultsData);
             
@@ -1508,7 +1622,21 @@ body.dark-mode .smell-detail,
 
         function updateResultsDisplay(results) {
             try {
-                currentSmells = results.smells || [];
+
+                
+                currentSmells = results.smells.smells.smells || [];
+                currentFileName=results.fileName || "";
+
+                console.log("Current Smells:", currentSmells);
+                currentSmells.forEach((smell, i) => {
+                    console.log(`Smell ${i}:`, smell);
+                });
+
+                current_method=results.method
+
+                filePath=results.smells.filePath;
+                
+
                 console.log('Updating results display with:', results);
                 
                 // Be VERY specific about targeting only the results tab
@@ -1740,11 +1868,6 @@ body.dark-mode .smell-detail,
                                 <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
                             </svg>
                         </button>
-                        <button class="action-btn solution-btn" onclick="showSolution(${index})" title="Show Solution">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/>
-                            </svg>
-                        </button>
                     </div>
                 </div>
                 <div class="card-spacer"></div>
@@ -1769,66 +1892,580 @@ body.dark-mode .smell-detail,
             }
         }
 
-        // Global variable to store current smells for action buttons
-        let currentSmells = [];
+        
 
-        // Store smells globally when results are updated
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
+        // Add this new tab content to your HTML (after the results-tab div)
+
+
+// Add this new tab content to your HTML (after the results-tab div)
+const explanationTabHTML = `
+<div id="explanation-tab" class="tab-content">
+    <div class="explanation-header">
+        <div class="back-arrow" onclick="goBackToResults()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5"/>
+                <path d="m12 19-7-7 7-7"/>
+            </svg>
+        </div>
+        <h2 class="explanation-title">Explanation and Suggestions</h2>
+    </div>
+    <div class="main-card">
+        <div class="explanation-content" id="explanation-content">
+            <div class="loading-explanation" id="loading-explanation">
+                <div class="loading-spinner">
+                    <svg viewBox="0 0 50 50">
+                        <circle cx="25" cy="25" r="20" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="31.416" stroke-dashoffset="31.416">
+                            <animate attributeName="stroke-array" dur="2s" values="0 31.416;15.708 15.708;0 31.416" repeatCount="indefinite"/>
+                            <animate attributeName="stroke-dashoffset" dur="2s" values="0;-15.708;-31.416" repeatCount="indefinite"/>
+                        </circle>
+                    </svg>
+                </div>
+                <div class="status-text">Generating explanation...</div>
+            </div>
+            <div class="explanation-text" id="explanation-text" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+`;
+
+const explanationCSS = `
+#explanation-tab {
+    display: none;
+    padding: 20px;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+#explanation-tab.active {
+    display: block;
+}
+
+.explanation-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.back-arrow {
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+    flex-shrink: 0;
+}
+
+.back-arrow:hover {
+    background-color: #f0f0f0;
+}
+
+.back-arrow svg {
+    width: 20px;
+    height: 20px;
+    stroke: #333;
+}
+
+.explanation-title {
+    flex: 1;
+    text-align: center;
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #333;
+}
+
+[data-theme="dark"] .explanation-title {
+    color: #f9fafb;
+}
+
+
+
+
+.explanation-content {
+    padding: 30px;
+    min-height: 400px;
+}
+
+.loading-explanation {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+}
+
+
+
+.status-text {
+    font-size: 16px;
+    color: #666;
+}
+
+.explanation-text {
+    line-height: 1.6;
+    color: #333;
+    font-size: 16px;
+    white-space: pre-wrap;
+}
+
+.typing-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.2em;
+    background-color: #007bff;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+    
+    
+    .explanation-content pre {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 15px;
+        border-radius: 5px;
+        overflow-x: auto;
+        white-space: pre;
+        margin: 15px 0;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .explanation-content pre code {
+        background: none;
+        padding: 0;
+        color: #e2e8f0;
+        white-space: pre;
+    }
+    
+    .explanation-content code {
+        background: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        color: #e83e8c;
+        font-size: 0.9em;
+        word-wrap: break-word;
+    }
+    
+    .explanation-content p {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+
+
+/* Dark theme for explanation content */
+[data-theme="dark"] .explanation-content {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border-color: #374151;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    color: #f3f4f6;
+}
+
+[data-theme="dark"] .explanation-content h2,
+[data-theme="dark"] .explanation-content h3 {
+    color: #f9fafb;
+    border-bottom-color: #60a5fa;
+}
+
+[data-theme="dark"] .explanation-content h1 {
+    color: #f9fafb;
+}
+
+[data-theme="dark"] .explanation-content p {
+    color: #e5e7eb;
+}
+
+[data-theme="dark"] .explanation-content strong {
+    color: #f3f4f6;
+    font-weight: 600;
+}
+
+[data-theme="dark"] .explanation-content code {
+    background: #374151;
+    color: #fbbf24;
+    border: 1px solid #4b5563;
+}
+
+[data-theme="dark"] .explanation-content pre {
+    background: #0f172a;
+    border: 1px solid #334155;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .explanation-content pre code {
+    background: none;
+    color: #94a3b8;
+    border: none;
+}
+
+[data-theme="dark"] .explanation-content blockquote {
+    background: #374151;
+    border-left: 4px solid #60a5fa;
+    color: #d1d5db;
+}
+
+[data-theme="dark"] .explanation-content ul li,
+[data-theme="dark"] .explanation-content ol li {
+    color: #e5e7eb;
+}
+
+[data-theme="dark"] .explanation-content a {
+    color: #60a5fa;
+}
+
+[data-theme="dark"] .explanation-content a:hover {
+    color: #93c5fd;
+}
+
+/* Dark theme typing cursor */
+[data-theme="dark"] .typing-cursor {
+    background-color: #60a5fa;
+}
+
+/* Dark theme scrollbar styling (optional) */
+[data-theme="dark"] .explanation-content::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+[data-theme="dark"] .explanation-content::-webkit-scrollbar-track {
+    background: #374151;
+    border-radius: 4px;
+}
+
+[data-theme="dark"] .explanation-content::-webkit-scrollbar-thumb {
+    background: #6b7280;
+    border-radius: 4px;
+}
+
+[data-theme="dark"] .explanation-content::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+[data-theme="dark"] .explanation-content pre::-webkit-scrollbar {
+    height: 8px;
+}
+
+[data-theme="dark"] .explanation-content pre::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+
+[data-theme="dark"] .explanation-content pre::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 4px;
+}
+
+`;
+
+// Function to initialize the explanation tab (call this once when page loads)
+function initializeExplanationTab() {
+    // Add the CSS first
+    const style = document.createElement('style');
+    style.textContent = explanationCSS;
+    document.head.appendChild(style);
+    
+    // Add the explanation tab HTML to the container
+    const container = document.querySelector('.container');
+    const explanationDiv = document.createElement('div');
+    explanationDiv.innerHTML = explanationTabHTML;
+    container.appendChild(explanationDiv.firstElementChild);
+}
+
+
+// Updated showExplanation function
+async function showExplanation(smellIndex) {
+    const smell = currentSmells[smellIndex];
+    
+    console.log('showExplanation called with index:', smellIndex);
+    console.log('smell:', smell);
+    console.log('filePath:', filePath);
+    console.log('current_method:', current_method);
+    
+    // Make sure the explanation tab exists
+    let explanationTab = document.getElementById('explanation-tab');
+    if (!explanationTab) {
+        console.log('Explanation tab not found, creating it...');
+        initializeExplanationTab();
+        explanationTab = document.getElementById('explanation-tab');
+    }
+    
+    if (!explanationTab) {
+        console.error('Failed to create explanation tab');
+        alert('Error: Could not create explanation tab');
+        return;
+    }
+    
+    // Switch to explanation tab
+    console.log('Switching to explanation tab...');
+    switchToExplanationTab();
+    
+    // Reset the explanation content
+    const loadingDiv = document.getElementById('loading-explanation');
+    const textDiv = document.getElementById('explanation-text');
+    
+    if (!loadingDiv || !textDiv) {
+        console.error('Loading or text div not found');
+        alert('Error: Explanation elements not found');
+        return;
+    }
+    
+    loadingDiv.style.display = 'flex';
+    textDiv.style.display = 'none';
+    textDiv.textContent = '';
+    
+    try {
+        console.log('Starting explanation generation...');
+        
         /*
-        function updateResultsDisplay(results) {
-            currentSmells = results.smells || [];
-            // ... rest of the existing updateResultsDisplay function code remains the same
-            console.log('Updating results display with:', results);
-            
-            const emptyState = document.getElementById('empty-state');
-            const resultsSummary = document.getElementById('results-summary');
-            const smellsContainer = document.getElementById('smells-container');
-            
-            // Hide empty state and show results
-            emptyState.style.display = 'none';
-            resultsSummary.style.display = 'grid';
-            smellsContainer.style.display = 'grid';
-            
-            // Update summary
-            document.getElementById('analyzed-file-name').textContent = results.fileName || 'Unknown';
-            document.getElementById('detection-method').textContent = results.method || 'Unknown';
-            document.getElementById('smells-count').textContent = results.smells ? results.smells.length : 0;
-            
-            // Clear previous results
-            smellsContainer.innerHTML = '';
-            
-            // Add smells
-            if (results.smells && results.smells.length > 0) {
-                results.smells.forEach((smell, index) => {
-                    const smellCard = createSmellCard(smell, index);
-                    smellsContainer.appendChild(smellCard);
-                });
-            } else {
-                // No smells found
-                smellsContainer.innerHTML = `
-                    <div class="smell-card" style="text-align: center; padding: 2rem;">
-                        <div style="color: var(--text-secondary);">
-                            <svg style="width: 3rem; height: 3rem; margin-bottom: 1rem; opacity: 0.5;" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                            <h3>No Code Smells Found!</h3>
-                            <p>Your quantum code looks clean and follows best practices.</p>
-                        </div>
-                    </div>
-                `;
-            }
+        let explanation="No explanation";
+
+        try {
+            explanation =  await callPythonFunction(
+                filePath, smell, current_method
+            );
+            console.log('Explanation:', explanation);
+        } catch (error) {
+            console.error('Error:', error);
         }
+        
+        // Hide loading and show the explanation
+        loadingDiv.style.display = 'none';
+        textDiv.style.display = 'block';
+        
+        // Create typing effect
+        const cursor = document.createElement('span');
+        cursor.className = 'typing-cursor';
+        textDiv.appendChild(cursor);
+        
+        // Simulate typing effect for the explanation
+        const explanationText = explanation;
+        let currentIndex = 0;
+        
+        const typeText = () => {
+            if (currentIndex < explanationText.length) {
+                const textNode = document.createTextNode(explanationText[currentIndex]);
+                textDiv.insertBefore(textNode, cursor);
+                textDiv.scrollTop = textDiv.scrollHeight;
+                currentIndex++;
+                setTimeout(typeText, 10); // Adjust typing speed here
+            } else {
+                cursor.remove(); // Remove cursor when done
+            }
+        };
+        
+        typeText();
         */
 
-        // Placeholder functions for action buttons - you'll implement these
-        function showExplanation(smellIndex) {
-            const smell = currentSmells[smellIndex];
-            if (smell && smell.explanation) {
-                alert(`Explanation for ${smell.type}:\n\n${smell.explanation}`);
-            } else {
-                alert(`Explanation for ${smell.type}:\n\nThis smell indicates potential issues in your quantum code that should be reviewed.`);
-            }
-            // TODO: Replace with your actual explanation implementation
+        let explanation="No explanation";
+
+        try {
+            explanation =  await callPythonFunction(
+                filePath, smell, current_method
+            );
+            console.log('Explanation:', explanation);
+        } catch (error) {
+            console.error('Error:', error);
         }
+
+        // Hide loading and show the explanation
+        loadingDiv.style.display = 'none';
+        textDiv.style.display = 'block';
+
+        // Replace your existing typing code with this:
+        const explanationText = explanation;
+        const htmlContent = marked.parse(explanationText); // Convert markdown to HTML
+
+        // Set the final HTML content immediately
+        textDiv.innerHTML = htmlContent;
+
+        // If you want to keep the typing effect, you could do word-by-word:
+        const words = explanationText.split(' ');
+        let currentWordIndex = 0;
+        textDiv.innerHTML = '<span class="typing-cursor"></span>';
+
+        const typeWords = () => {
+            if (currentWordIndex < words.length) {
+                const currentText = words.slice(0, currentWordIndex + 1).join(' ');
+                const currentHtml = marked.parse(currentText);
+                textDiv.innerHTML = currentHtml + '<span class="typing-cursor"></span>';
+                textDiv.scrollTop = textDiv.scrollHeight;
+                currentWordIndex++;
+                setTimeout(typeWords, 100); // Adjust speed
+            } else {
+                textDiv.innerHTML = htmlContent; // Final content without cursor
+            }
+        };
+
+        typeWords();
+        
+    } catch (error) {
+        console.error('Error getting explanation:', error);
+        loadingDiv.style.display = 'none';
+        textDiv.style.display = 'block';
+        textDiv.textContent = `Error getting explanation: ${error.message}`;
+    }
+
+}
+
+
+
+
+
+
+
+
+
+
+// Updated go back function
+function goBackToResults() {
+    console.log('=== GO BACK CALLED ===');
+    
+    // Hide explanation tab
+    const explanationTab = document.getElementById('explanation-tab');
+    if (explanationTab) {
+        explanationTab.classList.remove('active');
+    }
+    
+    // Show results tab
+    const resultsTab = document.getElementById('results-tab');
+    if (resultsTab) {
+        resultsTab.classList.add('active');
+    }
+    
+    // Update tab buttons
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Make results tab button active
+    const resultsButton = document.querySelector('[onclick="switchTab(\'results\')"]');
+    if (resultsButton) {
+        resultsButton.classList.add('active');
+    }
+}
+
+// Function to switch to explanation tab
+function switchToExplanationTab() {
+    // Hide all tabs
+    const tabs = document.querySelectorAll('.tab-content');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Show explanation tab
+    const explanationTab = document.getElementById('explanation-tab');
+    explanationTab.classList.add('active');
+    
+    // Update tab buttons (remove active from all)
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+}
+
+// Function to go back to results tab
+function goBackToResults() {
+    // Hide all tabs
+    const tabs = document.querySelectorAll('.tab-content');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Show results tab
+    const resultsTab = document.getElementById('results-tab');
+    resultsTab.classList.add('active');
+    
+    // Update tab buttons
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Make results tab button active
+    const resultsButton = document.querySelector('[onclick="switchTab(\'results\')"]');
+    if (resultsButton) {
+        resultsButton.classList.add('active');
+    }
+}
+
+// Call this when your page loads
+document.addEventListener('DOMContentLoaded', function() {
+    initializeExplanationTab();
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         function showSolution(smellIndex) {
             const smell = currentSmells[smellIndex];
@@ -1847,7 +2484,7 @@ body.dark-mode .smell-detail,
             // Try to get VSCode API if not already acquired
             if (!vscode) {
                 try {
-                    vscode = acquireVsCodeApi();
+                    //vscode = acquireVsCodeApi();
                     console.log('VSCode API acquired on DOM ready');
                 } catch (error) {
                     console.error('Failed to acquire VSCode API on DOM ready:', error);
