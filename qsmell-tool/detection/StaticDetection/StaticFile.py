@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
         output_directory = "generated_executables"
         executables = generator.analyze_and_generate_all_executables(file, output_directory)
-        print(f"\nGenerated {len(executables)} executable files in '{output_directory}/' directory")
+        print(f"\nGenerated {len(executables)} executable files in '{output_directory}/' directory for file {file}")
 
         # Map each generated executable to its original file
         for exe in executables:

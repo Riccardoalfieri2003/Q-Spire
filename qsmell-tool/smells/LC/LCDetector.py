@@ -14,6 +14,8 @@ from smells.utils.OperationCircuitTracker import analyze_quantum_file
 from smells.utils.BackendAnalyzer import analyze_circuits_backends_runs
 from smells.utils.config_loader import get_detector_option
 
+from smells.utils.CircuitTaker import analyze_quantum_file_circuits
+
 import math
 from typing import Dict, List, Tuple, Any
 
@@ -275,6 +277,8 @@ class LCDetector(Detector):
 
         if error_threshold==0:
 
+            print("Fallback error gate value")
+
             circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
             mappings = map_circuits_to_backends(circuits, backends, runs)
 
@@ -316,9 +320,20 @@ class LCDetector(Detector):
 
         else:
 
-            circuits, backends, runs = analyze_circuits_backends_runs(file)
+            
+            
+            
+            """
+            circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
+
+            # circuits = analyze_quantum_file_circuits(file, debug=True)
+            circuits = analyze_quantum_file(file)
+
+            print(f"\n\n    error gate: {error_threshold}\n    threshold: {threshold}\n      Circuiti: {circuits}\n      file:{file}\n")
 
             for circuit_name, circuit in circuits.items():
+
+                create_circuit_batches(circuits[circuit])
 
                 gate_name = "CustomGate"
                 max_error = error_threshold  # Retrieved from config
@@ -327,6 +342,8 @@ class LCDetector(Detector):
                 parallel_op = max_parallelism(circuit)
 
                 likelihood=math.pow(1-max_error,lenght_op*parallel_op)
+
+                print(f"Likelihood: {likelihood}")
 
                 # Heuristic thresholds — adjust as needed
                 if likelihood<threshold:
@@ -344,6 +361,53 @@ class LCDetector(Detector):
                     )
 
                     smells.append(smell)
+            """
+            
+            circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
+
+            # circuits = analyze_quantum_file_circuits(file, debug=True)
+            circuits = analyze_quantum_file(file)
+
+            #print(f"\n\n    error gate: {error_threshold}\n    threshold: {threshold}\n      Circuiti: {circuits}\n      file:{file}\n")
+
+            for circuit in circuits:
+
+                batches=create_circuit_batches(circuits[circuit])
+
+
+                gate_name = "CustomGate"
+                max_error = error_threshold  # Retrieved from config
+
+                lenght_op, parallel_op = analyze_batches(batches)
+
+                #if lenght_op==0 or parallel_op==0:
+                import pprint
+                pprint.pp(batches)
+
+                #lenght_op = 
+                #parallel_op = 
+
+                likelihood=math.pow(1-max_error,lenght_op*parallel_op)
+
+                print(f"lenght_op, parallel_op: {lenght_op, parallel_op}")
+                print(f"Likelihood: {likelihood}")
+
+                # Heuristic thresholds — adjust as needed
+                if likelihood<threshold:
+
+                    smell = LC(
+                        likelihood=likelihood,
+                        error={gate_name:max_error},
+                        lenght_op=lenght_op,
+                        parallel_op=parallel_op,
+                        backend="Custom Backend",
+                        circuit_name=circuit,  # Use the captured name
+                        explanation="",
+                        suggestion="",
+                        circuit=circuit
+                    )
+
+                    smells.append(smell)
 
 
 
@@ -352,3 +416,156 @@ class LCDetector(Detector):
 
         
         return smells
+
+
+
+
+def create_circuit_batches(operations):
+    """
+    Convert a sequential list of quantum operations into parallel execution batches.
+    
+    Each batch contains operations that can be executed in parallel (don't conflict on qubits).
+    The batches represent the actual execution order in the quantum circuit.
+    
+    Args:
+        operations: List of operation dictionaries with 'qubits_affected' field
+        
+    Returns:
+        dict: Dictionary where keys are batch numbers and values are lists of operations
+    """
+    
+    if not operations:
+        return {}
+    
+    batches = {}
+    batch_number = 1
+    
+    # Keep track of the last batch where each qubit was used
+    qubit_last_batch = {}
+    
+    # Process each operation in order
+    for operation in operations:
+        operation_qubits = operation['qubits_affected']
+        
+        # Find the minimum batch this operation can be placed in
+        # It must be after the last batch that used any of its qubits
+        min_batch = 1
+        for qubit in operation_qubits:
+            if qubit in qubit_last_batch:
+                min_batch = max(min_batch, qubit_last_batch[qubit] + 1)
+        
+        # Try to place the operation in the earliest possible batch
+        # where it doesn't conflict with other operations in that batch
+        placed = False
+        current_batch_num = min_batch
+        
+        while not placed:
+            # Check if this batch exists and if there's a conflict
+            if current_batch_num not in batches:
+                batches[current_batch_num] = []
+            
+            # Check for conflicts with existing operations in this batch
+            conflict = False
+            for existing_op in batches[current_batch_num]:
+                existing_qubits = set(existing_op['qubits_affected'])
+                if set(operation_qubits).intersection(existing_qubits):
+                    conflict = True
+                    break
+            
+            if not conflict:
+                # Place the operation in this batch
+                batches[current_batch_num].append(operation)
+                
+                # Update the last batch for all affected qubits
+                for qubit in operation_qubits:
+                    qubit_last_batch[qubit] = current_batch_num
+                
+                placed = True
+            else:
+                # Try the next batch
+                current_batch_num += 1
+    
+    # Clean up empty batches and renumber
+    final_batches = {}
+    batch_counter = 1
+    for batch_num in sorted(batches.keys()):
+        if batches[batch_num]:  # Only include non-empty batches
+            final_batches[batch_counter] = batches[batch_num]
+            batch_counter += 1
+    
+    return final_batches
+
+
+def analyze_batches(batches: Dict[int, List[Dict]], debug: bool = False) -> tuple[int, int]:
+    """
+    Analyze quantum circuit batches to find:
+    1. Max operations on any single qubit
+    2. Max operations executed in parallel (largest batch)
+    
+    Args:
+        batches: Dictionary with batch IDs as keys and lists of operation dicts as values
+        debug: If True, print debug information about operations
+    
+    Returns:
+        Tuple of (max_ops_per_qubit, max_ops_in_parallel)
+    """
+    
+    # Count operations per qubit (including classical bits)
+    qubit_operation_count = {}
+    
+    for batch_id, operations in batches.items():
+        for operation in operations:
+            # Get all qubits affected by this operation
+            qubits = operation.get('qubits_affected', [])
+            clbits = operation.get('clbits_affected', [])
+            
+            if debug and not qubits and not clbits:
+                print(f"Debug: Batch {batch_id}, Operation '{operation.get('operation_name')}' has no qubits or clbits affected")
+            
+            # Count qubits
+            for qubit in qubits:
+                qubit_operation_count[qubit] = qubit_operation_count.get(qubit, 0) + 1
+            
+            # Also count classical bits if no qubits
+            for clbit in clbits:
+                qubit_operation_count[f"cbit_{clbit}"] = qubit_operation_count.get(f"cbit_{clbit}", 0) + 1
+    
+    # Get max operations on any single qubit
+    max_ops_per_qubit = max(qubit_operation_count.values()) if qubit_operation_count else 0
+    
+    # Get max operations executed in parallel (largest batch)
+    max_ops_in_parallel = max(len(operations) for operations in batches.values()) if batches else 0
+    
+    if debug:
+        print(f"Qubit operation counts: {qubit_operation_count}")
+        print(f"Max ops per qubit: {max_ops_per_qubit}, Max ops in parallel: {max_ops_in_parallel}")
+    
+    return max_ops_per_qubit, max_ops_in_parallel
+    """
+    Analyze quantum circuit batches to find:
+    1. Max operations on any single qubit
+    2. Max operations executed in parallel (largest batch)
+    
+    Args:
+        batches: Dictionary with batch IDs as keys and lists of operation dicts as values
+    
+    Returns:
+        Tuple of (max_ops_per_qubit, max_ops_in_parallel)
+    """
+    
+    # Count operations per qubit
+    qubit_operation_count = {}
+    
+    for batch_id, operations in batches.items():
+        for operation in operations:
+            # Get all qubits affected by this operation
+            for qubit in operation['qubits_affected']:
+                qubit_operation_count[qubit] = qubit_operation_count.get(qubit, 0) + 1
+    
+    # Get max operations on any single qubit
+    max_ops_per_qubit = max(qubit_operation_count.values()) if qubit_operation_count else 0
+    
+    # Get max operations executed in parallel (largest batch)
+    max_ops_in_parallel = max(len(operations) for operations in batches.values()) if batches else 0
+    
+    return max_ops_per_qubit, max_ops_in_parallel

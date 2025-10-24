@@ -28,7 +28,7 @@ smell_classes = [CG, IdQ, IM, IQ, LC, LPQ, NC, ROC]
 
 thread_local = threading.local()
 
-suppress_print=True
+suppress_print=False
 
 def suppressed_print(*args, **kwargs):
     # Check if current thread should suppress prints

@@ -19,11 +19,16 @@ qc.h(0)
 backend.run(qc)
 """
 
-qc2=QuantumCircuit(3)
-qc2.h(0)
-qc2.x(2)
-qc2.cz(0,2)
-qc2.cz(0,1)
-qc2.cz(1,2)
-qc2.x(1)
-backend.run(qc2)
+if __name__ == "__main__":
+
+    qc2=QuantumCircuit(3)
+    qc2.h(0)
+    qc2.x(2)
+    qc2.cz(0,2)
+    qc2.append(1)
+    qc2.cz(0,1)
+    qc2.cz(1,2)
+    qc2.x(1)
+
+    print(qc2)
+    backend.run(qc2)

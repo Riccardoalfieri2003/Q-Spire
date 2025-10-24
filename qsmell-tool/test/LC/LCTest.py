@@ -26,6 +26,7 @@ def test_detector():
     for smell in smells:
 
         print(smell.as_dict())
+        break
         explanation_generator = Explainer.explain(code, smell, 'dynamic')
         
         if explanation_generator:

@@ -1,0 +1,5 @@
+Metadata-Version: 2.2
+Name: qspire
+Version: 1.0.0
+Requires-Dist: click
+Dynamic: requires-dist

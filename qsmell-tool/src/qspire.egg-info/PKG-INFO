@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: qspire
+Version: 1.0.0
+Summary: A CLI tool for quantum smell detection
+Author-email: Your Name <you@example.com>
+Requires-Dist: click

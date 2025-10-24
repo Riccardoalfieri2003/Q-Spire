@@ -10,10 +10,10 @@ from typing import Optional, Dict, List, Union
 from qiskit_ibm_runtime.models import (
     BackendStatus,
     BackendProperties,
-    PulseDefaults,
+    #PulseDefaults,
     GateConfig,
     QasmBackendConfiguration,
-    PulseBackendConfiguration,
+    #PulseBackendConfiguration,
     Nduv
 )
 

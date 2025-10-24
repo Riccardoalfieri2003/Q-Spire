@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 
-debug=True
+debug=False
 
 def get_fix_insertion_point(lines, error_line_idx):
     """
@@ -1716,7 +1716,8 @@ def check_for_syntax_errors(target_path):
         return True, ('CompileError', str(e), None)
 
 def auto_fix(target_path: Path):
-    max_iterations = 15
+    #max_iterations = 15
+    max_iterations = 0
     iteration = 0
     
     while iteration < max_iterations:

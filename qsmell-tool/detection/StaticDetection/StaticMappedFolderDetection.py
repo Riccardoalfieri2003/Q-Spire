@@ -67,11 +67,11 @@ def detect_smells_from_folder(folder):
     return smells
 
 
-"""
+
 if __name__ == "__main__":
     # python -m detection.StaticDetection.StaticMappedFolderDetection
 
-    folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/qiskit_algorithms/gradients/reverse")
+    folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/qiskit-braket-provider-main")
     output_saving_folder=os.path.abspath("C:/Users/rical/OneDrive/Desktop/SmellResults")
 
 
@@ -91,4 +91,3 @@ if __name__ == "__main__":
         
     save_output(output_saving_folder, smells, folder)
     print("Analysis completed")
-"""

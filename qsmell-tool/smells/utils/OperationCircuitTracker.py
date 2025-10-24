@@ -158,6 +158,8 @@ class QuantumCircuitAnalyzer:
                         self.circuit_sizes[var_name] = circuit.num_qubits
                     elif hasattr(circuit, 'qubits'):
                         self.circuit_sizes[var_name] = len(circuit.qubits)
+
+        #print(f"Final circuits: {final_circuits} ")
         
         # Initialize subcircuit states - start empty, will be built dynamically
         for var_name in circuit_vars:

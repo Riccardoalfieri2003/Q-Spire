@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple, Any
 from collections import defaultdict
 import importlib.util
 import copy
+from smells.utils.OperationCircuitTracker import analyze_quantum_file
 
 """
 Backend and Run Execution Analyzer for Qiskit code
@@ -47,6 +48,9 @@ class BackendAnalyzer:
         if debug:
             print(f"Found backend variables: {self.backend_variables}")
             print(f"Found circuit variables: {self.circuit_variables}")
+            print("type of circuit_variables:", type(self.circuit_variables[0]))
+            #print("Attributes and methods of circuit_variables:", dir(self.circuit_variables))
+            print("\n\n")
         
         # Execute the file to get actual backend instances and circuits
         self._execute_and_extract_backends_and_circuits(filepath, debug)
@@ -54,7 +58,12 @@ class BackendAnalyzer:
         # Analyze run executions in the source code
         self._analyze_run_executions(source_code, debug)
         
+        #print(f"Found circuit instance: {self.circuit_instances}")
+
+        self.circuit_instances = analyze_quantum_file(filepath)
+
         return self.circuit_instances, self.backend_instances, self.run_executions
+        #return self.circuit_variables, self.backend_instances, self.run_executions
     
     def _find_backend_variables(self, tree: ast.AST, source_code: str, debug: bool = False):
         """Find all backend variable assignments in the AST."""
@@ -120,47 +129,56 @@ class BackendAnalyzer:
         """Extract the backend type from the source line."""
         line_lower = line.lower()
         
-        if 'aersimulator' in line_lower:
-            return 'AerSimulator'
+        if 'aersimulator' in line_lower: return 'AerSimulator'
         elif 'aer.get_backend' in line_lower:
             # Try to extract the backend name from quotes
             match = re.search(r'get_backend\s*\(\s*[\'"]([^\'"]+)[\'"]', line)
-            if match:
-                return f"Aer_{match.group(1)}"
+            if match: return f"Aer_{match.group(1)}"
             return 'Aer_backend'
         elif 'fake_' in line_lower:
             # Extract fake backend name
             match = re.search(r'(fake_\w+)', line_lower)
-            if match:
-                return match.group(1)
+            if match:  return match.group(1)
             return 'FakeBackend'
-        elif 'ibmq.get_backend' in line_lower or 'ibmprovider' in line_lower:
-            return 'IBM_backend'
-        elif 'runtime' in line_lower:
-            return 'Runtime_backend'
-        else:
-            return 'Unknown_backend'
+        elif 'ibmq.get_backend' in line_lower or 'ibmprovider' in line_lower: return 'IBM_backend'
+        elif 'runtime' in line_lower: return 'Runtime_backend'
+        else:  return 'Unknown_backend'
     
     def _execute_and_extract_backends_and_circuits(self, filepath: str, debug: bool = False):
         """Execute the file and extract actual backend instances and circuit instances."""
         spec = importlib.util.spec_from_file_location("backend_module", filepath)
         module = importlib.util.module_from_spec(spec)
-        
+
+        #print(module)
+
         try:
             # Execute the module
             spec.loader.exec_module(module)
             
             # Extract circuit instances from the executed module
+            #print(f"self.circuit_variables: {self.circuit_variables}")
             for circuit_var in self.circuit_variables:
+                #print(f"Type of circuit_var: {type(circuit_var)}")
+                #print(f"circuit_var: {circuit_var}")
+                #print("Attributes and methods of circuit_var:", dir(circuit_var))
+
+                #print("Attributes and methods of module:", dir(module))
+
+
+                """FIX HERE !!!"""
                 if hasattr(module, circuit_var):
                     circuit_instance = getattr(module, circuit_var)
+
+                    #print(f"circuit_instance found here:\n {circuit_instance}")
+
+                    self.circuit_instances[circuit_var] = circuit_instance
                     
-                    # Check if it's actually a QuantumCircuit instance
+                    """# Check if it's actually a QuantumCircuit instance
                     if hasattr(circuit_instance, 'data') and (hasattr(circuit_instance, 'qubits') or hasattr(circuit_instance, 'num_qubits')):
                         self.circuit_instances[circuit_var] = circuit_instance
                         
                         if debug:
-                            print(f"Extracted circuit {circuit_var}: {circuit_instance.num_qubits} qubits, {len(circuit_instance.data)} operations")
+                            print(f"Extracted circuit {circuit_var}: {circuit_instance.num_qubits} qubits, {len(circuit_instance.data)} operations")"""
             
             # Extract backend instances from the executed module
             for backend_var in self.backend_variables:

@@ -2,11 +2,17 @@ import csv
 from pathlib import Path
 import shutil
 import threading
-from test.StaticCircuit import FunctionExecutionGenerator
+"""from test.StaticCircuit import FunctionExecutionGenerator
 from test.AutoFix import auto_fix
 import os
 from test.GeneralFileTest import detect_smells_from_file
-from test.GeneralFolderTest import save_output
+from test.GeneralFolderTest import save_output"""
+
+from detection.StaticDetection.StaticCircuit import FunctionExecutionGenerator
+from detection.StaticDetection.AutoFix import auto_fix
+import os
+from detection.DynamicDetection.GeneralFileTest import detect_smells_from_file
+from detection.DynamicDetection.GeneralFolderTest import save_output
 
 
 def get_all_python_files(folder_path):
@@ -37,8 +43,9 @@ def clear_folder(folder_path):
 
 if __name__ == "__main__":
     # python -m test.StaticFolder
+    # python -m detection.StaticDetection.StaticFolder
 
-    folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/QSmell_Tool/qsmell-tool/mpqp")
+    folder = os.path.abspath("C:/Users/rical/OneDrive/Desktop/Qelm-main")
     output_saving_folder=os.path.abspath("C:/Users/rical/OneDrive/Desktop/SmellResults")
 
 
@@ -57,7 +64,7 @@ if __name__ == "__main__":
 
             output_directory = "generated_executables"
             executables = generator.analyze_and_generate_all_executables(file, output_directory)
-            print(f"\nGenerated {len(executables)} executable files in '{output_directory}/' directory")
+            print(f"\nGenerated {len(executables)} executable files in '{output_directory}/' directory for file {file}")
 
             # Map each generated executable to its original file
             for exe in executables:
@@ -90,7 +97,8 @@ if __name__ == "__main__":
                     smells = detect_smells_from_file(exe)
                     if len(smells) > 0:
 
-                        print(smells)
+                        for smell in smells:
+                            print(smell.as_dict())
 
                         source_file = executables_dict[exe]
 
@@ -133,8 +141,8 @@ if __name__ == "__main__":
             for ex in executables_dict:
                 folder_path = os.path.dirname(ex)
                 clear_folder(folder_path)
-                break 
-        
+                break
+    
             executables_dict.clear()
             
 

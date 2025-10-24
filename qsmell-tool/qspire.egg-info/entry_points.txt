@@ -1,0 +1,2 @@
+[console_scripts]
+qspire = util.CLIModule:qspire
