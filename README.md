@@ -48,7 +48,7 @@ These smells are based on empirical research in quantum software engineering.
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Riccardoalfieri2003/Q-Spire
    cd qspire
    ```
 
@@ -93,7 +93,7 @@ qspire -method <static|dynamic> <resource_path> [output_folder]
 
 Analyze a single file with dynamic analysis:
 ```bash
-qspire -dynamic "my_quantum_code.py"
+qspire -dynamic "C:/my_quantum_code.py"
 ```
 
 Analyze an entire folder with static analysis and save results:
