@@ -68,6 +68,23 @@ def detect_smells_from_folder(folder):
 
 
 
+
+
+def static_file_detect(file:str):
+    smells=autofix_map_detect(file)
+    return smells
+
+def static_folder_detect(folder:str):
+    smells={}
+
+    pyFiles = get_all_python_files(folder)
+    for file in pyFiles:
+        
+        smells[file]=autofix_map_detect(file)
+
+    return smells
+
+"""
 if __name__ == "__main__":
     # python -m detection.StaticDetection.StaticMappedFolderDetection
 
@@ -91,3 +108,4 @@ if __name__ == "__main__":
         
     save_output(output_saving_folder, smells, folder)
     print("Analysis completed")
+"""

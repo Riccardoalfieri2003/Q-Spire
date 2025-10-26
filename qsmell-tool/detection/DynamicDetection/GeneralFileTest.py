@@ -461,3 +461,35 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
     else:
         print(f"File {file} not found")
 """
+
+
+def get_all_python_files(folder_path):
+    """Get all Python files in a folder recursively."""
+    python_files = []
+    for root, _, files in os.walk(folder_path):
+        for file in files:
+            if file.endswith(".py"):
+                full_path = os.path.join(root, file)
+                python_files.append(full_path)
+    return python_files
+
+
+def dynamic_file_detect(file: str, max_exec_depth: int = MAX_EXEC_DEPTH ):
+    """
+    Detect smells from a file with exec depth tracking.
+    
+    Args:
+        file: Path to the Python file to analyze
+        max_exec_depth: Maximum allowed depth of exec calls (default: MAX_EXEC_DEPTH)
+    """
+    return detect_smells_from_file(file, max_exec_depth = max_exec_depth)
+    
+
+def dynamic_folder_detect(folder: str, max_exec_depth: int = MAX_EXEC_DEPTH):
+    smells={}
+    try:
+        pyFiles = get_all_python_files(folder)
+        for file in pyFiles:
+            smells[file]=detect_smells_from_file(file)
+    except: pass
+    return smells

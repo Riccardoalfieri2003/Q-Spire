@@ -5398,6 +5398,10 @@ def get_function_smells(exe, executables_dict_exe):
         for static_smell in static_smells:
             smells.append(static_smell)
 
+
+
+    smells = [smell for smell in smells if smell.type not in ["CG", "LPQ"]]
+
     for smell in smells:
 
         if smell.type in ["CG", "LPQ"]: pass
@@ -5754,9 +5758,28 @@ def autofix_map_detect( file_path:str ):
 
     file_smells=[]
 
+    from smells.CG.CGDetector import CGDetector
+    from smells.LPQ.LPQDetector import LPQDetector
+
+    # Create instances
+    cg_detector = CGDetector(CG)
+    lpq_detector = LPQDetector(LPQ)
+
+    # Call the detect method on the instances
+    CG_file_smells = cg_detector.detect(file_path)
+    LPQ_file_smells = lpq_detector.detect(file_path)
+
     for smells in smells_dict:
         for smell in smells_dict[smells]:
             file_smells.append(smell)
+
+    # Then, add CG and LPQ smells (outside the previous loops)
+    for CG_smell in CG_file_smells:
+        file_smells.append(CG_smell)
+
+    for LPQ_smell in LPQ_file_smells:
+        file_smells.append(LPQ_smell)
+
     
     # Remove duplicates
     def make_hashable(obj):
