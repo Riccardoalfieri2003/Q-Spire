@@ -188,13 +188,13 @@ def qspire(method, resource, outputfolder):
             for file in result:
 
                 if len(result[file])==0: 
-                    print(f"No Smells in {file}")
+                    print(f"No Smells in {file}\n")
                     continue
 
                 print(f"Smells in {file}:")
                 for smell in result[file]: print(smell.as_dict())
 
-
+                print()
 
         click.echo("="*50 + "\n")
         
@@ -207,5 +207,3 @@ def qspire(method, resource, outputfolder):
 
 if __name__ == "__main__":
     qspire()
-
-

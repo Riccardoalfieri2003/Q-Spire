@@ -5644,6 +5644,7 @@ def get_function_smells(exe, executables_dict_exe):
 
 
 # Pre-import potentially problematic modules before any threading
+
 def preload_modules():
     try:
         import cirq
@@ -5654,7 +5655,7 @@ def preload_modules():
         print(f"Warning: Could not pre-load cirq: {e}")
 
 # Call this before starting any threads
-preload_modules()
+#preload_modules()
 
 
 def clear_folder(folder_path):

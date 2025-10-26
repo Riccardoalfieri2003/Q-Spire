@@ -4,7 +4,7 @@
   "_comment": "DEFAULT VALUES (default_values) SHOULD NOT BE MODIFIED",
   "Smells": {
     "IQ": {
-      "Name": " Initialization of Qubits differently from |0>",
+      "Name": "Initialization of Qubits differently from |0>",
       "Description": "Keeping the coherence of a quantum excited state is technologically difficult. Hence, initially one should keep it in its ground state (i.e., in state |0) as long as possible.",
       "Detector": {
         "default_values": {
@@ -46,7 +46,7 @@
       }
     },
     "IM": {
-      "Name": " Intermediate Measurements",
+      "Name": "Intermediate Measurements",
       "Description": "Measurements affect the state of the entire system, making it prone to more errors. Therefore, measurements should be postponed to be the very last operation on the circuit to avoid error propagation.",
       "Detector": {
         "default_values": {
