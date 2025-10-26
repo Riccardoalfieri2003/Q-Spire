@@ -6,3 +6,9 @@ qspire.egg-info/dependency_links.txt
 qspire.egg-info/entry_points.txt
 qspire.egg-info/requires.txt
 qspire.egg-info/top_level.txt
+qspire/qspire.egg-info/PKG-INFO
+qspire/qspire.egg-info/SOURCES.txt
+qspire/qspire.egg-info/dependency_links.txt
+qspire/qspire.egg-info/entry_points.txt
+qspire/qspire.egg-info/requires.txt
+qspire/qspire.egg-info/top_level.txt
