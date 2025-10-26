@@ -6,7 +6,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QSmell Tool</title>
+    <title>QSpire</title>
     <style>
         * {
             margin: 0;
@@ -1153,10 +1153,78 @@ body.dark-mode .smell-detail,
                     </div>
                 </div>
             </div>
+
         </div>
 
+        
         <div id="results-tab" class="tab-content">
+
+            <!-- NEW SECTION: Configuration Settings -->
+            <div class="main-card" style="padding: 1rem; padding-left: 1.5rem; padding-right: 1.5rem;">
+
+                <div class="summary-value" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                    <label for="api-key-input" class="summary-item" style="min-width: 100px;">API Key:</label>
+                    <input 
+                        id="api-key-input"
+                        type="password" 
+                        class="summary-item" 
+                        placeholder="Enter your API key"
+                        style="flex: 1; 
+                            padding: 0.625rem 0.875rem; 
+                            border: 1px solid #d1d5db; 
+                            border-radius: 0.375rem; 
+                            font-size: 0.875rem;
+                            transition: all 0.2s;
+                            outline: none;"
+                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)'"
+                        onblur="this.style.borderColor='#d1d5db'; this.style.boxShadow='none'"
+                    />
+                    <button 
+                        id="save-api-key-btn" 
+                        class="action-button" 
+                        style="background-color: #10b981; color: white; padding: 0.5rem 1.5rem; border: none; border-radius: 0.375rem; cursor: pointer; white-space: nowrap;"
+                    >
+                        Save
+                    </button>
+                </div>
+
+                <div class="summary-value" style="display: flex; align-items: center; gap: 1rem;">
+                    <label for="model-input" class="summary-item" style="min-width: 100px;">Model:</label>
+                    <input 
+                        id="model-input"
+                        type="text" 
+                        class="summary-item" 
+                        placeholder="Enter the model name"
+                        style="flex: 1; 
+                            padding: 0.625rem 0.875rem; 
+                            border: 1px solid #d1d5db; 
+                            border-radius: 0.375rem; 
+                            font-size: 0.875rem;
+                            transition: all 0.2s;
+                            outline: none;"
+                        onfocus="this.style.borderColor='#3b82f6'; this.style.boxShadow='0 0 0 3px rgba(59, 130, 246, 0.1)'"
+                        onblur="this.style.borderColor='#d1d5db'; this.style.boxShadow='none'"
+                    />
+                    <button 
+                        id="save-model-btn" 
+                        class="action-button" 
+                        style="background-color: #10b981; color: white; padding: 0.5rem 1.5rem; border: none; border-radius: 0.375rem; cursor: pointer; white-space: nowrap;"
+                    >
+                        Save
+                    </button>
+                </div>
+
+            </div>
+
+
+
+
+            <div style="height: 2rem;"></div>
+
             <div class="main-card">
+                
+                
+                
                 <div class="results-header">
                     <h2 class="section-title">Results & Analysis</h2>
                     <div class="results-summary" id="results-summary" style="display: none;">
@@ -1177,10 +1245,6 @@ body.dark-mode .smell-detail,
 
                 <div class="results-content" id="results-content">
                     <div class="empty-state" id="empty-state">
-                        <svg viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                        </svg>
-                        <h3>Results & Analysis</h3>
                         <p>This section will display your quantum code smell analysis results.</p>
                         <p style="margin-top: 0.5rem; font-size: 0.875rem;">Run an analysis to see detailed insights here.</p>
                     </div>
@@ -1189,8 +1253,10 @@ body.dark-mode .smell-detail,
                         <!-- Smells will be dynamically inserted here -->
                     </div>
                 </div>
+                
             </div>
         </div>
+
     </div>
 
 
@@ -1249,24 +1315,24 @@ body.dark-mode .smell-detail,
 
 <script>
         
-        // ✅ You can now access the absolute path
-        console.log('Extension absolute path:', window.extensionAbsolutePath);
-        console.log('Extension.js URI:', window.extensionJsUri);
-        
-        // Or request it via message if you prefer
-        vscode.postMessage({
-            command: 'getExtensionPath'
-        });
-        
-        // Listen for the response
-        window.addEventListener('message', event => {
-            const message = event.data;
-            if (message.command === 'extensionPath') {
-                console.log('Extension path received:', message.path);
-                console.log('Extension.js URI:', message.extensionJsUri);
-            }
-        });
-    </script>
+    // ✅ You can now access the absolute path
+    console.log('Extension absolute path:', window.extensionAbsolutePath);
+    console.log('Extension.js URI:', window.extensionJsUri);
+    
+    // Or request it via message if you prefer
+    vscode.postMessage({
+        command: 'getExtensionPath'
+    });
+    
+    // Listen for the response
+    window.addEventListener('message', event => {
+        const message = event.data;
+        if (message.command === 'extensionPath') {
+            console.log('Extension path received:', message.path);
+            console.log('Extension.js URI:', message.extensionJsUri);
+        }
+    });
+</script>
 
 <script>
     
@@ -1325,6 +1391,8 @@ body.dark-mode .smell-detail,
 
 
     <script>
+
+        console.log("Script loaded here"); // Add this at the very top
 
         // Global variable to store current smells for action buttons
         let currentSmells = [];
@@ -1385,6 +1453,7 @@ body.dark-mode .smell-detail,
         });
 
         // File selection handling
+        /*
         function handleFileSelect(event) {
             const file = event.target.files[0];
             const fileDisplay = document.getElementById('file-display');
@@ -1398,7 +1467,21 @@ body.dark-mode .smell-detail,
             }
             
             updateAnalyzeButton();
+        }*/
+       function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const fileDisplay = document.getElementById('file-display');
+                fileDisplay.textContent = file.name;
+                fileDisplay.title = file.path || file.name;
+                currentFilePath = file.path;
+                
+                // Mark as manually selected
+                fileDisplay.style.color = '#2196F3'; // Different color for manual selection
+                fileDisplay.style.fontWeight = 'normal';
+            }
         }
+
 
         // Update analyze button state
         function updateAnalyzeButton() {
@@ -1408,7 +1491,7 @@ body.dark-mode .smell-detail,
             const hasActiveFile = currentFilePath !== null && currentFilePath !== undefined;
             const analyzeBtn = document.getElementById('analyze-btn');
             
-            console.log('Updating analyze button:', { selectedMethod: !!selectedMethod, hasManualFile, hasActiveFile, currentFilePath });
+            // console.log('Updating analyze button:', { selectedMethod: !!selectedMethod, hasManualFile, hasActiveFile, currentFilePath });
             
             // Enable if method is selected AND (manual file is selected OR active file is available)
             if (selectedMethod && (hasManualFile || hasActiveFile)) {
@@ -1454,7 +1537,7 @@ body.dark-mode .smell-detail,
         // Request active file info from VSCode
         function requestActiveFileInfo() {
             if (vscode) {
-                console.log('Requesting active file info from VSCode');
+                // console.log('Requesting active file info from VSCode');
                 vscode.postMessage({
                     command: 'getActiveFile'
                 });
@@ -1466,9 +1549,28 @@ body.dark-mode .smell-detail,
         // Handle messages from VSCode extension
         window.addEventListener('message', event => {
             const message = event.data;
-            console.log('Received message from VSCode:', message);
+            //console.log('Received message from VSCode:', message);
             
             switch (message.command) {
+
+                case 'setActiveFile':
+                    // console.log('setActiveFile received:', message.filePath, message.fileName); // ADD THIS
+                    const fileDisplay = document.getElementById('file-display');
+                    
+                    if (message.filePath) {
+                        // console.log('Updating file display with:', message.fileName); // ADD THIS
+                        fileDisplay.textContent = message.fileName;
+                        fileDisplay.title = message.filePath;
+                        currentFilePath = message.filePath;
+                        
+                        // Visual indicator
+                        fileDisplay.style.color = '#4CAF50';
+                        fileDisplay.style.fontWeight = 'bold';
+                    } else {
+                        console.log('No filePath in message'); // ADD THIS
+                    }
+                    break;
+
                 case 'activeFileInfo':
                     updateActiveFileDisplay(message.fileName, message.filePath, message.multipleFiles);
                     break;
@@ -1500,7 +1602,7 @@ body.dark-mode .smell-detail,
             const fileDisplay = document.getElementById('file-display');
             const fileInput = document.getElementById('file-input');
             
-            console.log('Updating file display:', { fileName, filePath, multipleFiles });
+            // console.log('Updating file display:', { fileName, filePath, multipleFiles });
             
             // Only update if user hasn't manually selected a file
             if (fileInput.files.length === 0) {
@@ -2503,6 +2605,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
 
+    </script>
 
 
 
@@ -2513,7 +2616,80 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
+
+    
+
+
+
+</body>
+
+<script>
+
+        console.log("Script loaded!"); // Add this at the very top
+
+        // Path to your JSON file
+        const CONFIG_FILE_PATH = '../config.json'; // Update this with your actual path
+
+        // Load API key from JSON file when page loads
+        async function loadApiKey() {
+            console.log("Loading apikey");
+            try {
+                const response = await fetch(CONFIG_FILE_PATH);
+                const config = await response.json();
+                
+                // Assuming your JSON has an attribute like "api_key"
+                if (config.API_KEY) {
+                    document.getElementById('api-key-input').value = config.API_KEY;
+                }
+            } catch (error) {
+                console.error('Error loading API key:', error);
+            }
+        }
+
+        // Save API key to JSON file
+        async function saveApiKey() {
+            const apiKeyInput = document.getElementById('api-key-input');
+            const apiKeyValue = apiKeyInput.value;
+            
+            try {
+                // First, read the existing config
+                const response = await fetch(CONFIG_FILE_PATH);
+                const config = await response.json();
+                
+                // Update the api_key attribute
+                config.API_KEY = apiKeyValue;
+                
+                // Save back to the file
+                const saveResponse = await fetch(CONFIG_FILE_PATH, {
+                    method: 'PUT', // or 'POST' depending on your backend
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                if (saveResponse.ok) {
+                    // Visual feedback - briefly change button color
+                    const saveBtn = document.getElementById('save-api-key-btn');
+                    saveBtn.textContent = 'Saved!';
+                    saveBtn.style.backgroundColor = '#059669';
+                    setTimeout(() => {
+                        saveBtn.textContent = 'Save';
+                        saveBtn.style.backgroundColor = '#10b981';
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Error saving API key:', error);
+                alert('Failed to save API key');
+            }
+        }
+
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadApiKey);
+
+        // Add event listener to save button
+        document.getElementById('save-api-key-btn').addEventListener('click', saveApiKey);
 
     </script>
-</body>
+
 </html>

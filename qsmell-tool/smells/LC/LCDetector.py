@@ -242,19 +242,19 @@ def explore_backend_structure(backends: Dict[str, Dict]):
     Helper function to explore the structure of backends dictionary.
     """
     for backend_name, backend_info in backends.items():
-        print(f"\nBackend: {backend_name}")
-        print(f"  Keys: {list(backend_info.keys())}")
+        #print(f"\nBackend: {backend_name}")
+        #print(f"  Keys: {list(backend_info.keys())}")
         
         if 'instance' in backend_info:
             backend_instance = backend_info['instance']
-            print(f"  Instance type: {type(backend_instance).__name__}")
-            print(f"  Has properties method: {hasattr(backend_instance, 'properties')}")
+            #print(f"  Instance type: {type(backend_instance).__name__}")
+            #print(f"  Has properties method: {hasattr(backend_instance, 'properties')}")
             
             try:
                 props = backend_instance.properties()
-                print(f"  Properties available: {props is not None}")
-                if props:
-                    print(f"  Number of gates: {len(props.gates) if hasattr(props, 'gates') else 'N/A'}")
+                #print(f"  Properties available: {props is not None}")
+                #if props:
+                 #   print(f"  Number of gates: {len(props.gates) if hasattr(props, 'gates') else 'N/A'}")
             except Exception as e:
                 print(f"  Error getting properties: {e}")
 
@@ -277,7 +277,7 @@ class LCDetector(Detector):
 
         if error_threshold==0:
 
-            print("Fallback error gate value")
+            # print("Fallback error gate value")
 
             circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
             mappings = map_circuits_to_backends(circuits, backends, runs)
@@ -381,16 +381,16 @@ class LCDetector(Detector):
                 lenght_op, parallel_op = analyze_batches(batches)
 
                 #if lenght_op==0 or parallel_op==0:
-                import pprint
-                pprint.pp(batches)
+                #import pprint
+                #pprint.pp(batches)
 
                 #lenght_op = 
                 #parallel_op = 
 
                 likelihood=math.pow(1-max_error,lenght_op*parallel_op)
 
-                print(f"lenght_op, parallel_op: {lenght_op, parallel_op}")
-                print(f"Likelihood: {likelihood}")
+                #print(f"lenght_op, parallel_op: {lenght_op, parallel_op}")
+                #print(f"Likelihood: {likelihood}")
 
                 # Heuristic thresholds — adjust as needed
                 if likelihood<threshold:

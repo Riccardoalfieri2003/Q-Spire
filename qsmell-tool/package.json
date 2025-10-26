@@ -21,6 +21,16 @@
   "main": "./out/extension.js",
   "contributes": {
 
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mytool.toggleGui",
+          "group": "navigation",
+          "when": "editorLangId == python"
+        }
+      ]
+    },
+
 
     "commands": [
 
@@ -42,6 +52,12 @@
       {
         "command": "mytool.toggleGui",
         "title": "Toggle Analyzer GUI"
+      },
+
+      {
+        "command": "mytool.toggleGui",
+        "title": "Toggle QSpire Tool",
+        "icon": "$(chip)"
       }
 
     ]

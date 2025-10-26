@@ -261,7 +261,7 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
                 return []
             
             # Proceed with detection but monitor for exec calls during runtime
-            print(f"No static exec detected in {file}, proceeding with smell detection")
+            # print(f"No static exec detected in {file}, proceeding with smell detection")
             
             # Set up runtime exec detection with depth tracking
             exec_detected = threading.Event()  # Thread-safe flag
