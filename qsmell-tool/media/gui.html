@@ -2615,7 +2615,108 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
+    <script>
 
+        function loadModel() {
+            vscode.postMessage({
+                command: 'loadConfig',
+                field: 'LLM_model'
+            });
+        }
+
+        // Load API key when page loads
+        function loadApiKey() {
+            // Request the API key from extension.js
+            vscode.postMessage({
+                command: 'loadConfig',
+                field: 'API_KEY'
+            });
+        }
+
+        // Save API key
+        function saveApiKey() {
+            const apiKeyInput = document.getElementById('api-key-input');
+            const apiKeyValue = apiKeyInput.value;
+            
+            // Send save request to extension.js
+            vscode.postMessage({
+                command: 'saveConfig',
+                field: 'API_KEY',
+                value: apiKeyValue
+            });
+        }
+
+        // Save Model
+        function saveModel() {
+            const modelInput = document.getElementById('model-input');
+            const modelValue = modelInput.value;
+            
+            // Send save request to extension.js
+            vscode.postMessage({
+                command: 'saveConfig',
+                field: 'LLM_model',
+                value: modelValue
+            });
+        }
+
+        // Listen for messages from extension.js
+        window.addEventListener('message', event => {
+            const message = event.data;
+            
+            switch(message.command) {
+                case 'configLoaded':
+                    // Update the input field with loaded value
+                    if (message.field === 'API_KEY' && message.value) {
+                        document.getElementById('api-key-input').value = message.value;
+                    }
+                    if (message.field === 'LLM_model' && message.value) {
+                        document.getElementById('model-input').value = message.value;
+                    }
+                    break;
+                    
+                case 'configSaved':
+                    // Show success feedback for API Key
+                    if (message.field === 'API_KEY' && message.success) {
+                        const saveBtn = document.getElementById('save-api-key-btn');
+                        saveBtn.textContent = 'Saved!';
+                        saveBtn.style.backgroundColor = '#059669';
+                        setTimeout(() => {
+                            saveBtn.textContent = 'Save';
+                            saveBtn.style.backgroundColor = '#10b981';
+                        }, 2000);
+                    }
+                    // Show success feedback for Model
+                    if (message.field === 'LLM_model' && message.success) {
+                        const saveBtn = document.getElementById('save-model-btn');
+                        saveBtn.textContent = 'Saved!';
+                        saveBtn.style.backgroundColor = '#059669';
+                        setTimeout(() => {
+                            saveBtn.textContent = 'Save';
+                            saveBtn.style.backgroundColor = '#10b981';
+                        }, 2000);
+                    }
+                    break;
+            }
+        });
+
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadApiKey();
+            loadModel();
+            
+            // Add event listener to API Key save button
+            const apiKeySaveBtn = document.getElementById('save-api-key-btn');
+            if (apiKeySaveBtn) {
+                apiKeySaveBtn.addEventListener('click', saveApiKey);
+            }
+            
+            // Add event listener to Model save button
+            const modelSaveBtn = document.getElementById('save-model-btn');
+            if (modelSaveBtn) {
+                modelSaveBtn.addEventListener('click', saveModel);
+            }
+        });
+    </script>
 
     
 
@@ -2623,73 +2724,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </body>
 
-<script>
 
-        console.log("Script loaded!"); // Add this at the very top
-
-        // Path to your JSON file
-        const CONFIG_FILE_PATH = '../config.json'; // Update this with your actual path
-
-        // Load API key from JSON file when page loads
-        async function loadApiKey() {
-            console.log("Loading apikey");
-            try {
-                const response = await fetch(CONFIG_FILE_PATH);
-                const config = await response.json();
-                
-                // Assuming your JSON has an attribute like "api_key"
-                if (config.API_KEY) {
-                    document.getElementById('api-key-input').value = config.API_KEY;
-                }
-            } catch (error) {
-                console.error('Error loading API key:', error);
-            }
-        }
-
-        // Save API key to JSON file
-        async function saveApiKey() {
-            const apiKeyInput = document.getElementById('api-key-input');
-            const apiKeyValue = apiKeyInput.value;
-            
-            try {
-                // First, read the existing config
-                const response = await fetch(CONFIG_FILE_PATH);
-                const config = await response.json();
-                
-                // Update the api_key attribute
-                config.API_KEY = apiKeyValue;
-                
-                // Save back to the file
-                const saveResponse = await fetch(CONFIG_FILE_PATH, {
-                    method: 'PUT', // or 'POST' depending on your backend
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(config)
-                });
-                
-                if (saveResponse.ok) {
-                    // Visual feedback - briefly change button color
-                    const saveBtn = document.getElementById('save-api-key-btn');
-                    saveBtn.textContent = 'Saved!';
-                    saveBtn.style.backgroundColor = '#059669';
-                    setTimeout(() => {
-                        saveBtn.textContent = 'Save';
-                        saveBtn.style.backgroundColor = '#10b981';
-                    }, 2000);
-                }
-            } catch (error) {
-                console.error('Error saving API key:', error);
-                alert('Failed to save API key');
-            }
-        }
-
-        // Load data when page loads
-        document.addEventListener('DOMContentLoaded', loadApiKey);
-
-        // Add event listener to save button
-        document.getElementById('save-api-key-btn').addEventListener('click', saveApiKey);
-
-    </script>
 
 </html>

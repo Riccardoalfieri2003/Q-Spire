@@ -1,10 +1,8 @@
 {
   "API_KEY": "your-api-key",
   "LLM_model": "deepseek/deepseek-r1-distill-llama-70b:free",
-
   "_comment": "DEFAULT VALUES (default_values) SHOULD NOT BE MODIFIED",
   "Smells": {
-
     "IQ": {
       "Name": " Initialization of Qubits differently from |0>",
       "Description": "Keeping the coherence of a quantum excited state is technologically difficult. Hence, initially one should keep it in its ground state (i.e., in state |0) as long as possible.",
@@ -15,88 +13,78 @@
         "custom_values": {}
       }
     },
-
     "IdQ": {
       "Name": "Idle Qubit",
       "Description": "With current technology it is only possible to ensure the correctness of a state for very short periods of time. Having idle qubits for too long enhance the loss of quantum information that may jeopardize the results of a quantum circuit",
       "Detector": {
         "default_values": {
-          "max_distance":2
+          "max_distance": 2
         },
         "custom_values": {}
       }
     },
-
     "LC": {
       "Name": "Long Circuit",
       "Description": "Unitary gates and measurements are prone to errors (specially due to quantum noise). The higher the depth of the circuit and/or wider the circuit, the higher is the probability of affecting a quantum circuit's intended behavior.",
       "Detector": {
         "default_values": {
-          "threshold":0.999999
+          "threshold": 0.999999
         },
         "custom_values": {
           "gate_error": 0.5
         }
       }
     },
-
-
-
     "CG": {
       "Name": "Use of Customized Gates",
       "Description": "Any customized gate is decomposable into built-in operators of the framework. This decomposition requires a substantial higher number of operators when compared to the equivalent solution made exclusively of built-in operators.",
       "Detector": {
         "default_values": {
-          "min_num_smells":1
+          "min_num_smells": 1
         },
         "custom_values": {}
       }
     },
-
     "IM": {
       "Name": " Intermediate Measurements",
       "Description": "Measurements affect the state of the entire system, making it prone to more errors. Therefore, measurements should be postponed to be the very last operation on the circuit to avoid error propagation.",
       "Detector": {
         "default_values": {
-          "min_num_smells":1
+          "min_num_smells": 1
         },
         "custom_values": {}
       }
     },
-
     "NC": {
       "Name": "Non-parameterized Circuit",
       "Description": "Real devices work in a shared policy. To reduce communication payloads and avoid queuing for different initial values, the circuit should be designed parametrically to allow the different initial values to be provided at once.",
       "Detector": {
         "default_values": {
-          "difference_threshold":1
+          "difference_threshold": 1
         },
         "custom_values": {}
       }
     },
-
     "ROC": {
       "Name": "Repeated set of Operations on Circuit",
       "Description": "Due to technological and physical limitations, the number of operations one can pass to a quantum computer is limited, therefore the circuit implementing the whole algorithm should be prepared in such a way that the number of sequential repeated set of operations to be performed is the least possible.",
       "Detector": {
         "default_values": {
-          "min_subcircuit_lenght":1,
-          "min_num_smells":1
+          "min_subcircuit_lenght": 1,
+          "min_num_smells": 1
         },
         "custom_values": {}
       }
     },
-
     "LPQ": {
       "Name": "No-alignment between the Logical and Physical Qubits",
       "Description": "The topology of real qubits impacts the circuit behavior, i.e., the results obtained from the circuit can change according to the physical qubits configuration. Therefore, not aligning the logical qubits to the proper physical qubits may lead to less accurate results.",
       "Detector": {
         "default_values": {
-          "min_num_smells":1
+          "min_num_smells": 1
         },
         "custom_values": {}
       }
     }
-
   }
 }
