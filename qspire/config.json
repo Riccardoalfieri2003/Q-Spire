@@ -10,7 +10,9 @@
         "default_values": {
           "max_distance": 2
         },
-        "custom_values": {}
+        "custom_values": {
+          "max_distance": "10"
+        }
       }
     },
     "IdQ": {
@@ -20,7 +22,9 @@
         "default_values": {
           "max_distance": 2
         },
-        "custom_values": {}
+        "custom_values": {
+          "max_distance": "2"
+        }
       }
     },
     "LC": {
@@ -28,10 +32,11 @@
       "Description": "Unitary gates and measurements are prone to errors (specially due to quantum noise). The higher the depth of the circuit and/or wider the circuit, the higher is the probability of affecting a quantum circuit's intended behavior.",
       "Detector": {
         "default_values": {
-          "threshold": 0.999999
+          "threshold": 0.03512
         },
         "custom_values": {
-          "gate_error": 0.5
+          "gate_error": 0.03512,
+          "threshold": "5"
         }
       }
     },
@@ -42,7 +47,9 @@
         "default_values": {
           "min_num_smells": 1
         },
-        "custom_values": {}
+        "custom_values": {
+          "min_num_smells": "1"
+        }
       }
     },
     "IM": {
@@ -52,7 +59,9 @@
         "default_values": {
           "min_num_smells": 1
         },
-        "custom_values": {}
+        "custom_values": {
+          "min_num_smells": "1"
+        }
       }
     },
     "NC": {
@@ -62,7 +71,9 @@
         "default_values": {
           "difference_threshold": 1
         },
-        "custom_values": {}
+        "custom_values": {
+          "difference_threshold": "1"
+        }
       }
     },
     "ROC": {
@@ -70,10 +81,11 @@
       "Description": "Due to technological and physical limitations, the number of operations one can pass to a quantum computer is limited, therefore the circuit implementing the whole algorithm should be prepared in such a way that the number of sequential repeated set of operations to be performed is the least possible.",
       "Detector": {
         "default_values": {
-          "min_subcircuit_lenght": 1,
-          "min_num_smells": 1
+          "min_subcircuit_lenght": 1
         },
-        "custom_values": {}
+        "custom_values": {
+          "min_subcircuit_lenght": "1"
+        }
       }
     },
     "LPQ": {
@@ -83,7 +95,9 @@
         "default_values": {
           "min_num_smells": 1
         },
-        "custom_values": {}
+        "custom_values": {
+          "min_num_smells": "1"
+        }
       }
     }
   }

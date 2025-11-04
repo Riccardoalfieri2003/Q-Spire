@@ -56,7 +56,12 @@ def save_output_for_files(resource, output_saving_folder, smells, folder="SmellR
 
     # Encode full path into a valid filename
     safe_name = resource.replace(folder,"").replace(":", "_").replace("\\", "_").replace("/", "_")
+    #print(f"safe_name: {safe_name}")
     output_file_path = os.path.join(output_saving_folder, f"{safe_name}.csv")
+    
+    #print(f"output_file_path: {output_file_path}")
+
+    print(f"💾 Results will be saved to: {safe_name}")
 
     # Convert all smells to dict form
     smells_dicts = [s.as_dict() for s in smells]
@@ -89,7 +94,7 @@ def static_method(resource, result_folder=None):
 
         if result_folder: 
             subfolder=resource.split("\\")[-1].replace(".py","")
-            print(f"💾 Results will be saved to: {result_folder}\{subfolder}")
+            #print(f"💾 Results will be saved to: {result_folder}\{resource}")
             save_output_for_files(resource, result_folder, result, subfolder )
         else: print(f"Results will be shown on the terminal (default)")
     
@@ -118,7 +123,7 @@ def dynamic_method(resource, result_folder=None):
 
         if result_folder: 
             subfolder=resource.split("\\")[-1].replace(".py","")
-            print(f"💾 Results will be saved to: {result_folder}\{subfolder}")
+            #print(f"💾 Results will be saved to: {result_folder}\{resource}")
             save_output_for_files(resource, result_folder, result, subfolder )
         else: print(f"Results will be shown on the terminal (default)")
     

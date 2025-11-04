@@ -366,7 +366,7 @@ class LCDetector(Detector):
             circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
 
             # circuits = analyze_quantum_file_circuits(file, debug=True)
-            circuits = analyze_quantum_file(file)
+            circuits = analyze_quantum_file(file, debug=False)
 
             #print(f"\n\n    error gate: {error_threshold}\n    threshold: {threshold}\n      Circuiti: {circuits}\n      file:{file}\n")
 

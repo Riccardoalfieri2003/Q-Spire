@@ -120,9 +120,25 @@ class QuantumCircuitAnalyzer:
                                         'type': register_type,
                                         'size': size
                                     }
+
+
     
     def _simulate_execution_with_tracking(self, filepath: str, source_code: str, circuit_vars: List[str], debug: bool = False) -> Dict[str, List[Dict]]:
         """Simulate execution step by step to track dynamic subcircuit construction."""
+
+        def _has_main_block( self, source_code: str) -> bool:
+            # Remove comments and strings to avoid false positives
+            cleaned_code = self._remove_comments_and_strings(source_code)
+            
+            # Check for common variations
+            patterns = [
+                'if __name__ == "__main__"',
+                "if __name__ == '__main__'",
+                'if __name__=="__main__"',
+                "if __name__=='__main__'",
+            ]
+            
+            return any(pattern in cleaned_code for pattern in patterns)
         
         # Remove comments and string literals from source code
         cleaned_source_code = self._remove_comments_and_strings(source_code)
@@ -135,16 +151,81 @@ class QuantumCircuitAnalyzer:
         results = {var: [] for var in circuit_vars}
         subcircuit_snapshots = {}  # Store snapshots of subcircuits at different points
         
-        # Execute the file first to get the final circuits for reference
-        spec = importlib.util.spec_from_file_location("quantum_module", filepath)
-        module = importlib.util.module_from_spec(spec)
+
+        # Read and execute the file with __name__ set to "__main__"
+        with open(filepath, 'r') as f:
+            code = f.read()
+
+        main_block=False
+        if _has_main_block(self, code): main_block=True
         
-        try:
-            spec.loader.exec_module(module)
-        except Exception as e:
-            print(f"Error executing module: {e}")
-            return results
+        if main_block:
+            namespace = {'__name__': '__main__', '__file__': filepath}
+            exec(code, namespace)
+
+            found_vars={}
+            for var_name in circuit_vars:
+                variable = namespace.get(var_name)
+                found_vars[var_name]=variable
+            
+            circuit_vars=found_vars
+
+        else:
+            # Execute the file first to get the final circuits for reference
+            spec = importlib.util.spec_from_file_location("quantum_module", filepath)
+            module = importlib.util.module_from_spec(spec)
+
+            
+            try:
+                spec.loader.exec_module(module)
+            except Exception as e:
+                print(f"Error executing module: {e}")
+                return results
+
+            
+
+
+        if debug: print("Circuit Vars: ",circuit_vars)
+
+
+        # Get the final circuits and update sizes
+        final_circuits = {}
+
+
+        if main_block:
         
+            for var_name in circuit_vars:            
+
+                circuit = circuit_vars[var_name]
+
+                if (hasattr(circuit, 'data') and 
+                    (hasattr(circuit, 'qubits') or hasattr(circuit, 'num_qubits'))):
+                    final_circuits[var_name] = circuit
+                    # Update circuit size from actual circuit
+                    if hasattr(circuit, 'num_qubits'):
+                        self.circuit_sizes[var_name] = circuit.num_qubits
+                    elif hasattr(circuit, 'qubits'):
+                        self.circuit_sizes[var_name] = len(circuit.qubits)
+        
+        else:
+            for var_name in circuit_vars:
+                if hasattr(module, var_name):
+                    circuit = getattr(module, var_name)
+                    if (hasattr(circuit, 'data') and 
+                        (hasattr(circuit, 'qubits') or hasattr(circuit, 'num_qubits'))):
+                        final_circuits[var_name] = circuit
+                        # Update circuit size from actual circuit
+                        if hasattr(circuit, 'num_qubits'):
+                            self.circuit_sizes[var_name] = circuit.num_qubits
+                        elif hasattr(circuit, 'qubits'):
+                            self.circuit_sizes[var_name] = len(circuit.qubits)
+
+        
+        
+
+
+
+        """
         # Get the final circuits and update sizes
         final_circuits = {}
         for var_name in circuit_vars:
@@ -158,8 +239,12 @@ class QuantumCircuitAnalyzer:
                         self.circuit_sizes[var_name] = circuit.num_qubits
                     elif hasattr(circuit, 'qubits'):
                         self.circuit_sizes[var_name] = len(circuit.qubits)
+        """
+            
 
-        #print(f"Final circuits: {final_circuits} ")
+    
+
+        if debug: print(f"Final circuits: {final_circuits} ")
         
         # Initialize subcircuit states - start empty, will be built dynamically
         for var_name in circuit_vars:
@@ -167,6 +252,7 @@ class QuantumCircuitAnalyzer:
         
         # Now simulate the execution step by step
         operation_lines = self._extract_operation_sequence(cleaned_source_code, circuit_vars)
+
         
         if debug:
             print(f"Found {len(operation_lines)} operation lines")
@@ -201,7 +287,7 @@ class QuantumCircuitAnalyzer:
                     print(f"Appending {subcircuit_name} (with {len(current_subcircuit_ops)} ops) to {main_circuit} on qubits {qubits}, clbits {clbits}")
                     for op in current_subcircuit_ops:
                         print(f"    - {op}")
-                
+
                 # Add operations from the current state of the subcircuit
                 for sub_op in current_subcircuit_ops:
                     # Map subcircuit qubits to main circuit qubits

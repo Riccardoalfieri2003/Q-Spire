@@ -73,7 +73,7 @@ def contains_exec_comprehensive(file_path):
             return True  # Assume it contains exec if we can't read it
         
         # Quick string check first
-        if 'exec(' in content or 'exec ' in content:
+        if 'exec(' in content :
             print(f"File {path} contains 'exec' in source code")
             return True
         
@@ -87,7 +87,7 @@ def contains_exec_comprehensive(file_path):
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 # Direct exec() call
-                if isinstance(node.func, ast.Name) and node.func.id == 'exec':
+                if isinstance(node.func, ast.Name) and node.func.id == 'exec(':
                     print(f"File {path} contains exec() function call")
                     return True
                 # builtins.exec or __builtins__.exec
@@ -256,9 +256,10 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
         
         try:
             # First, do static analysis to check for exec in the file itself
-            if has_exec_function(file):
+            """if has_exec_function(file):
                 print(f"Skipping {file} - contains exec() function")
                 return []
+            """
             
             # Proceed with detection but monitor for exec calls during runtime
             # print(f"No static exec detected in {file}, proceeding with smell detection")
@@ -396,9 +397,9 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
                     else:
                         # Some other runtime error, log it
                         print(f"Runtime error in detector {detector}: {e}")
-                except Exception as e:
+                #except Exception as e:
                     # Any other exception, log it but don't crash
-                    print(f"Error in detector {detector}: {e}")
+                    #print(f"Error in detector {detector}: {e}")
                 finally:
                     # Clear the suppression flag for this thread
                     thread_local.suppress_prints = False
