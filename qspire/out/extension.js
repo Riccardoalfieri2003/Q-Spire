@@ -649,7 +649,40 @@ function loadConfigFromFile(field, webview) {
         console.log(config);
 
         // Valid smell fields
-        const validFields = ["CG", "LPQ", "IQ", "IdQ", "ROC", "LC", "NC", "IM"];
+        const validFields = ["CG", "LPQ", "IQ", "IdQ", "ROC", "NC", "IM", "LC"];
+
+        // 🟢 Handle LC special sub-fields first
+        if (field === "LC-Threshold" || field === "LC-GateError") {
+            const lcParam = field === "LC-Threshold" ? "threshold" : "gate_error";
+            let value = '';
+
+            if (config.Smells && config.Smells.LC) {
+                const lcSmell = config.Smells.LC;
+
+                // Try custom values first
+                if (lcSmell.Detector?.custom_values?.[lcParam] !== undefined) {
+                    value = lcSmell.Detector.custom_values[lcParam];
+                    console.log(`Found custom LC value for ${lcParam}:`, value);
+                }
+                // Fallback to default
+                else if (lcSmell.Detector?.default_values?.[lcParam] !== undefined) {
+                    value = lcSmell.Detector.default_values[lcParam];
+                    console.log(`Using default LC value for ${lcParam}:`, value);
+                }
+            }
+
+            // Send back to webview
+            webview.postMessage({
+                command: 'configLoaded',
+                field: field,
+                parameter: lcParam,
+                value: value
+            });
+
+            console.log(`Loaded ${field}:`, value);
+            return; // ✅ stop here, since we handled it
+        }
+        
 
         if( !validFields.includes(field) ){
             // Send the value back to the webview
@@ -764,6 +797,7 @@ function saveConfigToFile(field, value, webview) {
 }*/
 
 // Function to save config to JSON file
+/*
 function saveConfigToFile(field, value, webview) {
     try {
         const configPath = path.join(__dirname, '..', 'config.json');
@@ -833,6 +867,111 @@ function saveConfigToFile(field, value, webview) {
             success: true
         });
         
+        console.log(`Saved ${field}:`, value);
+    } catch (error) {
+        console.error('Error saving config:', error);
+        webview.postMessage({
+            command: 'configSaved',
+            field: field,
+            success: false,
+            error: error.message
+        });
+    }
+}
+*/
+
+function saveConfigToFile(field, value, webview) {
+    try {
+        const configPath = path.join(__dirname, '..', 'config.json');
+        
+        // Read existing config
+        let config = {};
+        if (fs.existsSync(configPath)) {
+            const configData = fs.readFileSync(configPath, 'utf8');
+            config = JSON.parse(configData);
+        }
+
+        // Valid smell fields
+        const validFields = ["CG", "LPQ", "IQ", "IdQ", "ROC", "LC", "NC", "IM"];
+
+        // 🟢 Handle LC special sub-fields first
+        if (field === "LC-Threshold" || field === "LC-GateError") {
+            const lcParam = field === "LC-Threshold" ? "threshold" : "gate_error";
+
+            // Ensure LC structure exists
+            if (!config.Smells) config.Smells = {};
+            if (!config.Smells.LC) config.Smells.LC = {};
+            if (!config.Smells.LC.Detector) config.Smells.LC.Detector = {};
+            if (!config.Smells.LC.Detector.custom_values) config.Smells.LC.Detector.custom_values = {};
+
+            // Save the value
+            config.Smells.LC.Detector.custom_values[lcParam] = value;
+            console.log(`Saved LC custom value for ${lcParam}:`, value);
+
+            // Write back to file
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+
+            // Send success message back
+            webview.postMessage({
+                command: 'configSaved',
+                field: field,
+                success: true
+            });
+
+            return; // ✅ Stop here, special case handled
+        }
+
+        // 🟡 Normal smell saving
+        if (validFields.includes(field)) {
+            if (!config.Smells) config.Smells = {};
+
+            if (config.Smells[field]) {
+                const smell = config.Smells[field];
+
+                // Get parameter name from default_values
+                let parameterName = '';
+                if (smell.Detector?.default_values) {
+                    const defaultKeys = Object.keys(smell.Detector.default_values);
+                    if (defaultKeys.length > 0) {
+                        parameterName = defaultKeys[0];
+                    }
+                }
+
+                // Ensure custom_values exists
+                if (!smell.Detector.custom_values) {
+                    smell.Detector.custom_values = {};
+                }
+
+                // Save to custom_values
+                if (parameterName) {
+                    smell.Detector.custom_values[parameterName] = value;
+                    console.log(`Saved custom value for ${field}.${parameterName}:`, value);
+                }
+            } else {
+                console.error(`Smell ${field} not found in config`);
+                webview.postMessage({
+                    command: 'configSaved',
+                    field: field,
+                    success: false,
+                    error: 'Smell not found in config'
+                });
+                return;
+            }
+        } else {
+            // For non-smell fields (e.g. API_KEY, LLM_model)
+            config[field] = value;
+        }
+
+        // Write back to file
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+
+        // Notify success
+        webview.postMessage({
+            command: 'configSaved',
+            field: field,
+            success: true
+        });
+
         console.log(`Saved ${field}:`, value);
     } catch (error) {
         console.error('Error saving config:', error);

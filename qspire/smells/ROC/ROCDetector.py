@@ -28,6 +28,10 @@ class ROCDetector(Detector):
         smells = []
         circuits = analyze_quantum_file(file)
 
+        """for circuit in circuits:
+            import pprint
+            pprint.pp(circuits[circuit])"""
+
         min_subcircuit_lenght = get_detector_option("ROC", "min_subcircuit_lenght", fallback=2)
 
         for circuit_name, operations in circuits.items():

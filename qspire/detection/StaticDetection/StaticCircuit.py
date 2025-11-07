@@ -820,11 +820,11 @@ except ImportError:
                                 # Replace return statements with sys.exit(0)
                 if stripped_line.startswith('return '):
                     # Keep original return as comment on same line
-                    processed_lines.append(f'{indent_str}sys.exit(0)  # {stripped_line}')
+                    processed_lines.append(f'{indent_str}{indent_str}sys.exit(0)  # {stripped_line}')
                     continue
                 elif stripped_line == 'return':
                     # Handle bare return statements
-                    processed_lines.append(f'{indent_str}sys.exit(0)  # return')
+                    processed_lines.append(f'{indent_str}{indent_str}sys.exit(0)  # return')
                     continue
 
                 
@@ -1394,7 +1394,8 @@ except Exception as e:
             elif 'float' in param.type_annotation.lower():
                 return f'{param.name} = 1.0  # Default float value'
             else:
-                return f'{param.name} = None  # Unknown standard type: {param.type_annotation}'
+                return f'{param.name} = type("_Unknown", (), {{"__getattr__": lambda self, name: self, "__call__": lambda self, *args, **kwargs: self, "__getitem__": lambda self, key: self, "__iter__": lambda self: iter([]), "__bool__": lambda self: True, "__str__": lambda self: "", "__repr__": lambda self: "_Unknown()", "__len__": lambda self: 0, "__eq__": lambda self, other: False, "__add__": lambda self, other: self, "__sub__": lambda self, other: self, "__mul__": lambda self, other: self, "__truediv__": lambda self, other: self}})()'
+                #return f'{param.name} = None  # Unknown standard type: {param.type_annotation}'
         else:
             # Handle custom types
             base_type = self._extract_base_type(param.type_annotation)

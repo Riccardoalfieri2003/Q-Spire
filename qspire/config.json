@@ -11,7 +11,7 @@
           "max_distance": 2
         },
         "custom_values": {
-          "max_distance": "10"
+          "max_distance": 2
         }
       }
     },
@@ -23,7 +23,7 @@
           "max_distance": 2
         },
         "custom_values": {
-          "max_distance": "2"
+          "max_distance": 2
         }
       }
     },
@@ -32,11 +32,12 @@
       "Description": "Unitary gates and measurements are prone to errors (specially due to quantum noise). The higher the depth of the circuit and/or wider the circuit, the higher is the probability of affecting a quantum circuit's intended behavior.",
       "Detector": {
         "default_values": {
-          "threshold": 0.03512
+          "gate_error": 0.03512,
+          "threshold": 0.5
         },
         "custom_values": {
           "gate_error": 0.03512,
-          "threshold": "5"
+          "threshold": 0.5
         }
       }
     },
@@ -48,7 +49,7 @@
           "min_num_smells": 1
         },
         "custom_values": {
-          "min_num_smells": "1"
+          "min_num_smells": 1
         }
       }
     },
@@ -60,7 +61,7 @@
           "min_num_smells": 1
         },
         "custom_values": {
-          "min_num_smells": "1"
+          "min_num_smells": 1
         }
       }
     },
@@ -72,7 +73,7 @@
           "difference_threshold": 1
         },
         "custom_values": {
-          "difference_threshold": "1"
+          "difference_threshold": 1
         }
       }
     },
@@ -84,7 +85,7 @@
           "min_subcircuit_lenght": 1
         },
         "custom_values": {
-          "min_subcircuit_lenght": "1"
+          "min_subcircuit_lenght": 1
         }
       }
     },
@@ -96,9 +97,10 @@
           "min_num_smells": 1
         },
         "custom_values": {
-          "min_num_smells": "1"
+          "min_num_smells": 1
         }
       }
     }
-  }
+  },
+  "LC-Threshold": 0.8
 }

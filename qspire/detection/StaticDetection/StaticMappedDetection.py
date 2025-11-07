@@ -3905,11 +3905,8 @@ def handle_syntax_error(lines, line_no, error_msg):
     
     return lines
 
+"""
 def check_for_syntax_errors(target_path):
-    """
-    Check if a Python file has syntax errors without executing it.
-    Returns (has_syntax_error, error_info) where error_info is (error_type, error_msg, line_no) or None.
-    """
     try:
         # Try to compile the file - this will catch syntax errors without execution
         with open(target_path, 'r', encoding='utf-8') as f:
@@ -3925,7 +3922,7 @@ def check_for_syntax_errors(target_path):
         # Other compilation errors
         return True, ('CompileError', str(e), None)
 
-
+"""
 
 
 
@@ -4249,6 +4246,20 @@ def check_for_syntax_errors(file_path: Path) -> Tuple[bool, Optional[Tuple[str, 
         return False, None
     except SyntaxError as e:
         return True, ("SyntaxError", str(e), e.lineno)
+    
+
+def check_for_indentation_errors(file_path: Path) -> Tuple[bool, Optional[Tuple[str, str, int]]]:
+    """Check if file has indentation errors without executing it"""
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        compile(content, str(file_path), 'exec')
+        return False, None
+    except IndentationError as e:
+        return True, ("IndentationError", str(e), e.lineno)
+    except TabError as e:
+        return True, ("TabError", str(e), e.lineno)
+
+
 
 def parse_syntax_error(stderr: str, file_path: Path) -> Optional[Tuple[str, str, int]]:
     """Parse syntax error from stderr output"""
@@ -4350,6 +4361,48 @@ def handle_syntax_error_with_mapping(lines: List[str], line_no: int, err_msg: st
         mapper.update_line_offset(-1)
     
     return lines
+
+def handle_indentation_error(lines: List[str], line_no: int, err_msg: str) -> List[str]:
+    """Handle indentation error by adjusting the indentation of the problematic line"""
+    if not line_no or line_no < 1 or line_no > len(lines):
+        return lines
+    
+    idx = line_no - 1
+    problematic_line = lines[idx]
+    
+    # Skip if line is empty or only whitespace
+    if not problematic_line.strip():
+        return lines
+    
+    # Determine the fix based on error message
+    if "unexpected indent" in err_msg.lower():
+        # Remove one level of indentation (4 spaces or 1 tab)
+        if problematic_line.startswith("    "):
+            lines[idx] = problematic_line[4:]
+        elif problematic_line.startswith("\t"):
+            lines[idx] = problematic_line[1:]
+    
+    elif "expected an indented block" in err_msg.lower():
+        # Add one level of indentation (4 spaces)
+        lines[idx] = "    " + problematic_line
+    
+    elif "unindent does not match" in err_msg.lower():
+        # Try to align with previous non-empty line's indentation
+        if idx > 0:
+            # Find previous non-empty line
+            prev_idx = idx - 1
+            while prev_idx >= 0 and not lines[prev_idx].strip():
+                prev_idx -= 1
+            
+            if prev_idx >= 0:
+                # Get indentation of previous line
+                prev_indent = len(lines[prev_idx]) - len(lines[prev_idx].lstrip())
+                # Apply same indentation to current line
+                lines[idx] = " " * prev_indent + problematic_line.lstrip()
+    
+    return lines
+
+
 
 def apply_fix_with_mapping(lines: List[str], fix: Dict, line_no: int, 
                          mapper: LineMapper, main_lines: Dict[int, Tuple[int, int]]) -> List[str]:
@@ -4502,7 +4555,7 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
     global latest_fix
     if target_path not in latest_fix: latest_fix[target_path]=None
 
-    max_iterations = 10
+    max_iterations = 15
     iteration = 0
     
     # Initialize the line mapper
@@ -4535,6 +4588,7 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
         has_syntax_error, syntax_error_info = check_for_syntax_errors(target_path)
         
         if has_syntax_error:
+            iteration-=1
             if debug: print(f"🔍 Syntax error detected before execution!")
             err_type, err_msg, line_no = syntax_error_info
             if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
@@ -4545,6 +4599,25 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
             target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
             
             if debug: print(f"✅ Applied syntax error fix at line {line_no}")
+            if debug: print("🔄 Retrying...\n")
+            continue
+
+        
+
+        has_indent_error, indent_error_info = check_for_indentation_errors(target_path)
+
+        if has_indent_error:
+            iteration-=1
+            if debug: print(f"🔍 Indentation error detected!")
+            err_type, err_msg, line_no = indent_error_info
+            if debug: print(f"Detected {err_type} at line {line_no}: {err_msg}")
+            
+            # Handle indentation error (no mapping needed)
+            lines = target_path.read_text(encoding="utf-8").splitlines()
+            lines = handle_indentation_error(lines, line_no, err_msg)
+            target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            
+            if debug: print(f"✅ Applied indentation fix at line {line_no}")
             if debug: print("🔄 Retrying...\n")
             continue
         
@@ -4830,7 +4903,7 @@ call_depth = 0
 call_depth_lock = threading.Lock()
 
 # Configuration for maximum allowed exec depth
-MAX_EXEC_DEPTH = 5  # You can change this value
+MAX_EXEC_DEPTH = 25  # You can change this value
 
 def contains_exec_comprehensive(file_path):
     """
@@ -4854,25 +4927,29 @@ def contains_exec_comprehensive(file_path):
             return True  # Assume it contains exec if we can't read it
         
         # Quick string check first
-        if 'exec(' in content or 'exec ' in content:
+        #if 'exec(' in content or 'exec ' in content:
+        if 'exec(' in content:
             print(f"File {path} contains 'exec' in source code")
             return True
         
+        return False
+        """
         try:
             tree = ast.parse(content)
         except SyntaxError as e:
             print(f"Syntax error in {path}: {e}")
-            return True  # Assume it contains exec if we can't parse it
+            return False  # Assume it contains exec if we can't parse it
+        """
         
         # Check for exec() function calls
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 # Direct exec() call
-                if isinstance(node.func, ast.Name) and node.func.id == 'exec':
+                """if isinstance(node.func, ast.Name) and node.func.id == 'exec':
                     print(f"File {path} contains exec() function call")
-                    return True
+                    return True"""
                 # builtins.exec or __builtins__.exec
-                elif isinstance(node.func, ast.Attribute):
+                if isinstance(node.func, ast.Attribute):
                     if (isinstance(node.func.value, ast.Name) and 
                         node.func.value.id in ['builtins', '__builtins__'] and 
                         node.func.attr == 'exec'):
@@ -5022,9 +5099,9 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
         normalized_file = os.path.normpath(os.path.abspath(file))
         
         # If this is not the first call (depth > 1), it means a file is calling other files
-        if current_depth > 5:
+        """if current_depth > 5:
             print(f"Skipping {file} - called from another file being analyzed")
-            return []
+            return []"""
         
         # Check if this file is already being processed (direct recursion detection)
         with processing_lock:
@@ -5092,10 +5169,10 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
                 
                 try:
                     # Check if we should skip due to exec depth
-                    if current_exec_depth > max_exec_depth:
+                    """if current_exec_depth > max_exec_depth:
                         print(f"Detected exec at depth {current_exec_depth} (max: {max_exec_depth}) - marking for skip")
                         exec_detected.set()
-                        raise RuntimeError("EXEC_DETECTED_DURING_ANALYSIS")
+                        raise RuntimeError("EXEC_DETECTED_DURING_ANALYSIS")"""
                     
                     #print(f"Allowing exec at depth {current_exec_depth}")
                     return original_exec(code, globals_dict, locals_dict)
@@ -5337,9 +5414,11 @@ def get_function_smells(exe, executables_dict_exe):
 
     
     # Start thread for map_lines_simple
-    class_function_map = threading.Thread(target=wrapper, args=(map_lines_simple, result, 'map_lines_simple', executables_dict_exe, exe), kwargs={'similarity_threshold': 0.5})
+    
+    """class_function_map = threading.Thread(target=wrapper, args=(map_lines_simple, result, 'map_lines_simple', executables_dict_exe, exe), kwargs={'similarity_threshold': 0.5})
     class_function_map.start()
-    threads.append(class_function_map)
+    threads.append(class_function_map)"""
+    
     
 
     # Start thread for map_lines_of_code
@@ -5359,12 +5438,14 @@ def get_function_smells(exe, executables_dict_exe):
         t.join()
     
     # Reduce map_lines_simple to just {generated_line: original_line}
+    """
     if 'map_lines_simple' in result and 'line_mappings' in result['map_lines_simple']:
         result['map_lines_simple'] = {
             mapping['generated_line']: mapping['original_line']
             for mapping in result['map_lines_simple']['line_mappings']
             if 'generated_line' in mapping and 'original_line' in mapping
         }
+    """
 
     # Reduce map_lines_of_code to just {generated_line: original_line}
     
@@ -5386,11 +5467,13 @@ def get_function_smells(exe, executables_dict_exe):
     
     
     auto_fix_map_var = results[exe].get("auto_fix_with_mapping", {})    # From the generated file, maps the differences of the lines before and after the fix
-    map_lines_simple_var = results[exe].get("map_lines_simple", {})     # Maps lines before the main
+    #map_lines_simple_var = results[exe].get("map_lines_simple", {})     # Maps lines before the main
     map_lines_of_code_var = results[exe].get("map_lines_of_code", {})   # Maps the main lines
 
     print(f"Smell detection in function executable file: {exe}")
     smells = detect_smells_from_file(exe)
+
+    print(smells)
 
     static_detectors_objects = [Detector(smell_cls) for smell_cls in staticDetection_smell_classes]
     for detector in static_detectors_objects:
@@ -5645,14 +5728,14 @@ def get_function_smells(exe, executables_dict_exe):
 
 # Pre-import potentially problematic modules before any threading
 
-def preload_modules():
+"""def preload_modules():
     try:
         import cirq
         #print("Pre-loaded cirq successfully")
     except ImportError:
         print("cirq not available, skipping pre-load")
     except Exception as e:
-        print(f"Warning: Could not pre-load cirq: {e}")
+        print(f"Warning: Could not pre-load cirq: {e}")"""
 
 # Call this before starting any threads
 #preload_modules()
@@ -5813,11 +5896,13 @@ def autofix_map_detect( file_path:str ):
 
 
     #CLEAR SECTION
+    
     for ex in executables_dict:
         folder_path = os.path.dirname(ex)
         try: clear_folder(folder_path)
         except: pass
         break
+    
 
     return file_smells
     

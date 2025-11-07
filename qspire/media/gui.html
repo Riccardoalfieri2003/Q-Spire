@@ -1233,7 +1233,7 @@ body.dark-mode .smell-detail,
                         <div class="threshold-input-group">
                             <input 
                                 id="iq-threshold"
-                                type="text" 
+                                type="number" 
                                 class="summary-item" 
                                 placeholder="Enter value"
                                 style="flex: 1; 
@@ -1261,7 +1261,7 @@ body.dark-mode .smell-detail,
                         <div class="threshold-input-group">
                             <input 
                                 id="idq-threshold"
-                                type="text" 
+                                type="number" 
                                 class="summary-item" 
                                 placeholder="Enter value"
                                 style="flex: 1; 
@@ -1289,7 +1289,7 @@ body.dark-mode .smell-detail,
                         <div class="threshold-input-group">
                             <input 
                                 id="lc-gate_error"
-                                type="text" 
+                                type="number" 
                                 class="summary-item" 
                                 placeholder="Enter value"
                                 style="flex: 1; 
@@ -1317,7 +1317,7 @@ body.dark-mode .smell-detail,
                         <div class="threshold-input-group">
                             <input 
                                 id="lc-threshold"
-                                type="text" 
+                                type="number"
                                 class="summary-item" 
                                 placeholder="Enter value"
                                 style="flex: 1; 
@@ -1346,7 +1346,7 @@ body.dark-mode .smell-detail,
                         <div class="threshold-input-group">
                             <input 
                                 id="nc-threshold"
-                                type="text" 
+                                type="number" 
                                 class="summary-item" 
                                 placeholder="Enter value"
                                 style="flex: 1; 
@@ -1374,7 +1374,7 @@ body.dark-mode .smell-detail,
                         <div class="threshold-input-group">
                             <input 
                                 id="roc-threshold"
-                                type="text" 
+                                type="number" 
                                 class="summary-item" 
                                 placeholder="Enter value"
                                 style="flex: 1; 
@@ -1402,7 +1402,7 @@ body.dark-mode .smell-detail,
                         <div class="threshold-input-group">
                             <input 
                                 id="cg-threshold"
-                                type="text" 
+                                type="number" 
                                 class="summary-item" 
                                 placeholder="Enter value"
                                 style="flex: 1; 
@@ -1430,7 +1430,7 @@ body.dark-mode .smell-detail,
                         <div class="threshold-input-group">
                             <input 
                                 id="im-threshold"
-                                type="text" 
+                                type="number"
                                 class="summary-item" 
                                 placeholder="Enter value"
                                 style="flex: 1; 
@@ -1458,7 +1458,7 @@ body.dark-mode .smell-detail,
                         <div class="threshold-input-group">
                             <input 
                                 id="lpq-threshold"
-                                type="text" 
+                                type="number" 
                                 class="summary-item" 
                                 placeholder="Enter value"
                                 style="flex: 1; 
@@ -2992,7 +2992,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function saveCG() {
             const modelInput = document.getElementById('cg-threshold');
-            const modelValue = modelInput.value;
+             const modelValue = parseFloat(modelInput.value);
             
             // Send save request to extension.js
             vscode.postMessage({
@@ -3004,7 +3004,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function saveLPQ() {
             const modelInput = document.getElementById('lpq-threshold');
-            const modelValue = modelInput.value;
+            const modelValue =  parseFloat(modelInput.value);
             
             // Send save request to extension.js
             vscode.postMessage({
@@ -3016,7 +3016,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function saveIM() {
             const modelInput = document.getElementById('im-threshold');
-            const modelValue = modelInput.value;
+            const modelValue = parseFloat(modelInput.value);
             
             // Send save request to extension.js
             vscode.postMessage({
@@ -3028,7 +3028,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function saveROC() {
             const modelInput = document.getElementById('roc-threshold');
-            const modelValue = modelInput.value;
+            const modelValue = parseFloat(modelInput.value);
             
             // Send save request to extension.js
             vscode.postMessage({
@@ -3038,33 +3038,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        function saveLCgate_error() {
-            const modelInput = document.getElementById('lc-gate_error');
-            const modelValue = modelInput.value;
-            
-            // Send save request to extension.js
-            vscode.postMessage({
-                command: 'saveConfig',
-                field: 'LC',
-                value: modelValue
-            });
-        }
-
-        function saveLCthreshold() {
-            const modelInput = document.getElementById('lc-threshold');
-            const modelValue = modelInput.value;
-            
-            // Send save request to extension.js
-            vscode.postMessage({
-                command: 'saveConfig',
-                field: 'LC',
-                value: modelValue
-            });
-        }
-
         function saveNC() {
             const modelInput = document.getElementById('nc-threshold');
-            const modelValue = modelInput.value;
+            const modelValue =  parseFloat(modelInput.value);
             
             // Send save request to extension.js
             vscode.postMessage({
@@ -3076,7 +3052,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function saveIQ() {
             const modelInput = document.getElementById('iq-threshold');
-            const modelValue = modelInput.value;
+            const modelValue = parseFloat(modelInput.value);
             
             // Send save request to extension.js
             vscode.postMessage({
@@ -3088,12 +3064,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function saveIdQ() {
             const modelInput = document.getElementById('idq-threshold');
-            const modelValue = modelInput.value;
+            const modelValue =  parseFloat(modelInput.value);
             
             // Send save request to extension.js
             vscode.postMessage({
                 command: 'saveConfig',
                 field: 'IdQ',
+                value: modelValue
+            });
+        }
+
+
+
+
+
+        function saveLCgate_error() {
+            const modelInput = document.getElementById('lc-gate_error');
+            const modelValue = parseFloat(modelInput.value);
+            
+            // Send save request to extension.js
+            vscode.postMessage({
+                command: 'saveConfig',
+                field: 'LC-GateError',
+                value: modelValue
+            });
+        }
+
+        function saveLCthreshold() {
+            const modelInput = document.getElementById('lc-threshold');
+            const modelValue = parseFloat(modelInput.value);
+            
+            // Send save request to extension.js
+            vscode.postMessage({
+                command: 'saveConfig',
+                field: 'LC-Threshold',
                 value: modelValue
             });
         }
@@ -3124,13 +3128,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
-        function loadLC() {
-            vscode.postMessage({
-                command: 'loadConfig',
-                field: 'LC'
-            });
-        }
-
         function loadROC() {
             vscode.postMessage({
                 command: 'loadConfig',
@@ -3156,6 +3153,24 @@ document.addEventListener('DOMContentLoaded', function() {
             vscode.postMessage({
                 command: 'loadConfig',
                 field: 'NC'
+            });
+        }
+
+
+
+        //Aggiunere differenze
+
+        function loadLCGateError() {
+            vscode.postMessage({
+                command: 'loadConfig',
+                field: 'LC-GateError'
+            });
+        }
+
+        function loadLCThreshold() {
+            vscode.postMessage({
+                command: 'loadConfig',
+                field: 'LC-Threshold'
             });
         }
 
@@ -3192,14 +3207,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (message.field === 'ROC' && message.value) {
                         document.getElementById('roc-threshold').value = message.value;
                     }
-                    if (message.field === 'LC' && message.value) {
-                        document.getElementById('lc-threshold').value = message.value;
-                    }
                     if (message.field === 'NC' && message.value) {
                         document.getElementById('nc-threshold').value = message.value;
                     }
                     if (message.field === 'IM' && message.value) {
                         document.getElementById('im-threshold').value = message.value;
+                    }
+
+
+                    if (message.field === 'LC-Threshold' && message.value) {
+                        document.getElementById('lc-threshold').value = message.value;
+                    }
+                    if (message.field === 'LC-GateError' && message.value) {
+                        document.getElementById('lc-gate_error').value = message.value;
                     }
 
                     break;
@@ -3289,16 +3309,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         }, 2000);
                     }
 
-                    if (message.field === 'LC' && message.success) {
-                        const saveBtn = document.getElementById('save-lc-btn');
-                        saveBtn.textContent = 'Saved!';
-                        saveBtn.style.backgroundColor = '#059669';
-                        setTimeout(() => {
-                            saveBtn.textContent = 'Save';
-                            saveBtn.style.backgroundColor = '#10b981';
-                        }, 2000);
-                    }
-
                     if (message.field === 'NC' && message.success) {
                         const saveBtn = document.getElementById('save-nc-btn');
                         saveBtn.textContent = 'Saved!';
@@ -3308,6 +3318,33 @@ document.addEventListener('DOMContentLoaded', function() {
                             saveBtn.style.backgroundColor = '#10b981';
                         }, 2000);
                     }
+
+
+                    
+
+                    // Aggiingere differenza 
+
+                    if (message.field === 'LC-Threshold' && message.success) {
+                        const saveBtn = document.getElementById('save-lc-btn');
+                        saveBtn.textContent = 'Saved!';
+                        saveBtn.style.backgroundColor = '#059669';
+                        setTimeout(() => {
+                            saveBtn.textContent = 'Save';
+                            saveBtn.style.backgroundColor = '#10b981';
+                        }, 2000);
+                    }
+
+                    if (message.field === 'LC-GateError' && message.success) {
+                        const saveBtn = document.getElementById('save-lc-gate_error-btn');
+                        saveBtn.textContent = 'Saved!';
+                        saveBtn.style.backgroundColor = '#059669';
+                        setTimeout(() => {
+                            saveBtn.textContent = 'Save';
+                            saveBtn.style.backgroundColor = '#10b981';
+                        }, 2000);
+                    }
+
+                    
 
                     
 
@@ -3328,10 +3365,11 @@ document.addEventListener('DOMContentLoaded', function() {
             loadIM();
             loadIQ();
             loadIdQ();
-            loadLC();
             loadLPQ();
             loadNC();
             loadROC();
+            loadLCGateError();
+            loadLCThreshold();
             
             // Add event listener to API Key save button
             const apiKeySaveBtn = document.getElementById('save-api-key-btn');
@@ -3371,11 +3409,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 IdQSaveBtn.addEventListener('click', saveIdQ);
             }
 
-            const LCSaveBtn = document.getElementById('save-lc-btn');
-            if (LCSaveBtn) {
-                LCSaveBtn.addEventListener('click', saveLC);
-            }
-
             const ROCSaveBtn = document.getElementById('save-roc-btn');
             if (ROCSaveBtn) {
                 ROCSaveBtn.addEventListener('click', saveROC);
@@ -3384,6 +3417,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const NCSaveBtn = document.getElementById('save-nc-btn');
             if (NCSaveBtn) {
                 NCSaveBtn.addEventListener('click', saveNC);
+            }
+
+
+            const LCSaveGateErrorBtn = document.getElementById('save-lc-gate_error-btn');
+            if (LCSaveGateErrorBtn) {
+                LCSaveGateErrorBtn.addEventListener('click', saveLCgate_error);
+            }
+
+            const LCSaveThresholdBtn = document.getElementById('save-lc-btn');
+            if (LCSaveThresholdBtn) {
+                LCSaveThresholdBtn.addEventListener('click', saveLCthreshold);
             }
 
         });
@@ -3426,12 +3470,3 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 </html>
-
-
-
-
-<!--
-Da fare!:
-modificare i threshold a valore numerico quando vengono caricati e salcati ad GUI. ora è a stringa
-modificare come LC è trattato. servono gate rror e thresgold
--->

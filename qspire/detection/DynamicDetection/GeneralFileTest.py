@@ -49,7 +49,7 @@ call_depth = 0
 call_depth_lock = threading.Lock()
 
 # Configuration for maximum allowed exec depth
-MAX_EXEC_DEPTH = 3  # You can change this value
+MAX_EXEC_DEPTH = 25  # You can change this value
 
 def contains_exec_comprehensive(file_path):
     """
@@ -87,11 +87,11 @@ def contains_exec_comprehensive(file_path):
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 # Direct exec() call
-                if isinstance(node.func, ast.Name) and node.func.id == 'exec(':
+                """if isinstance(node.func, ast.Name) and node.func.id == 'exec(':
                     print(f"File {path} contains exec() function call")
-                    return True
+                    return True"""
                 # builtins.exec or __builtins__.exec
-                elif isinstance(node.func, ast.Attribute):
+                if isinstance(node.func, ast.Attribute):
                     if (isinstance(node.func.value, ast.Name) and 
                         node.func.value.id in ['builtins', '__builtins__'] and 
                         node.func.attr == 'exec'):
@@ -241,9 +241,9 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
         normalized_file = os.path.normpath(os.path.abspath(file))
         
         # If this is not the first call (depth > 1), it means a file is calling other files
-        if current_depth > 1:
+        """if current_depth > 1:
             print(f"Skipping {file} - called from another file being analyzed")
-            return []
+            return []"""
         
         # Check if this file is already being processed (direct recursion detection)
         with processing_lock:
@@ -312,10 +312,10 @@ def detect_smells_from_file(file: str, max_exec_depth: int = MAX_EXEC_DEPTH):
                 
                 try:
                     # Check if we should skip due to exec depth
-                    if current_exec_depth > max_exec_depth:
+                    """if current_exec_depth > max_exec_depth:
                         print(f"Detected exec at depth {current_exec_depth} (max: {max_exec_depth}) - marking for skip")
                         exec_detected.set()
-                        raise RuntimeError("EXEC_DETECTED_DURING_ANALYSIS")
+                        raise RuntimeError("EXEC_DETECTED_DURING_ANALYSIS")"""
                     
                     #print(f"Allowing exec at depth {current_exec_depth}")
                     return original_exec(code, globals_dict, locals_dict)

@@ -34,9 +34,9 @@ class QuantumCircuitAnalyzer:
         with open(filepath, 'r', encoding="utf-8") as f:
             source_code = f.read()
         
-        if debug:
-            print(f"Analyzing file: {filepath}")
-        
+        """if debug:
+            print(f"Analyzing file: {filepath}")"""
+        #debug=True
         # Parse the AST to find circuit-related operations
         tree = ast.parse(source_code)
         
@@ -48,6 +48,7 @@ class QuantumCircuitAnalyzer:
             print(f"Circuit sizes: {self.circuit_sizes}")
             print(f"Register info: {self.register_info}")
         
+        debug=False
         # Simulate execution step by step to track dynamic subcircuit construction
         results = self._simulate_execution_with_tracking(filepath, source_code, circuit_vars, debug)
             
@@ -153,7 +154,7 @@ class QuantumCircuitAnalyzer:
         
 
         # Read and execute the file with __name__ set to "__main__"
-        with open(filepath, 'r') as f:
+        with open(filepath, 'r', encoding="utf-8") as f:
             code = f.read()
 
         main_block=False
@@ -194,23 +195,12 @@ class QuantumCircuitAnalyzer:
 
         if main_block:
         
-            for var_name in circuit_vars:            
+            for var_name in circuit_vars:   
 
-                circuit = circuit_vars[var_name]
+                try:         
 
-                if (hasattr(circuit, 'data') and 
-                    (hasattr(circuit, 'qubits') or hasattr(circuit, 'num_qubits'))):
-                    final_circuits[var_name] = circuit
-                    # Update circuit size from actual circuit
-                    if hasattr(circuit, 'num_qubits'):
-                        self.circuit_sizes[var_name] = circuit.num_qubits
-                    elif hasattr(circuit, 'qubits'):
-                        self.circuit_sizes[var_name] = len(circuit.qubits)
-        
-        else:
-            for var_name in circuit_vars:
-                if hasattr(module, var_name):
-                    circuit = getattr(module, var_name)
+                    circuit = circuit_vars[var_name]
+
                     if (hasattr(circuit, 'data') and 
                         (hasattr(circuit, 'qubits') or hasattr(circuit, 'num_qubits'))):
                         final_circuits[var_name] = circuit
@@ -219,6 +209,25 @@ class QuantumCircuitAnalyzer:
                             self.circuit_sizes[var_name] = circuit.num_qubits
                         elif hasattr(circuit, 'qubits'):
                             self.circuit_sizes[var_name] = len(circuit.qubits)
+                    
+                except: continue
+        
+        else:
+            for var_name in circuit_vars:
+
+                try:
+
+                    if hasattr(module, var_name):
+                        circuit = getattr(module, var_name)
+                        if (hasattr(circuit, 'data') and 
+                            (hasattr(circuit, 'qubits') or hasattr(circuit, 'num_qubits'))):
+                            final_circuits[var_name] = circuit
+                            # Update circuit size from actual circuit
+                            if hasattr(circuit, 'num_qubits'):
+                                self.circuit_sizes[var_name] = circuit.num_qubits
+                            elif hasattr(circuit, 'qubits'):
+                                self.circuit_sizes[var_name] = len(circuit.qubits)
+                except: continue
 
         
         

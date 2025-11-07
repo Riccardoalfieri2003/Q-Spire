@@ -17,6 +17,9 @@ class IMDetector(Detector):
         smells = []
 
         circuits = analyze_quantum_file(file)
+        """for circuit in circuits:
+            import pprint
+            pprint.pp(circuits[circuit])"""
 
         for circuit_name, operations in circuits.items():
             # Dictionary mapping qubit index to list of (index in operations list, operation dict)
