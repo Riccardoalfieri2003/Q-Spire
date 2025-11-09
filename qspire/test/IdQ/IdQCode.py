@@ -24,4 +24,3 @@ qc.z(qreg_q[2])
 qc.s(qreg_q[2])
 
 qc.measure_all(add_bits=False)
-

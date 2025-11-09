@@ -42,6 +42,7 @@ class QuantumCircuitAnalyzer:
         
         # Find all QuantumCircuit variables and their sizes, plus register info
         circuit_vars = self._find_circuit_variables(tree, source_code)
+        #print(f"circuit_vars: {circuit_vars}")
         self._find_register_variables(tree)
         if debug:
             print(f"Found circuit variables: {circuit_vars}")

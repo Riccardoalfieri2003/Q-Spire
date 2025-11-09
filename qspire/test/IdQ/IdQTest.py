@@ -13,11 +13,11 @@ def test_detector():
         Make sure to be inside the folder QSmell_Tool\qspire
         Since imports are relative, in order to test the code below execute the following script in the terminal
 
-        python -m test.IdQ.IdQTest
+        python -m qspire.test.IdQ.IdQTest
         
     """
     
-    file="test/IdQ/IdQCode.py"
+    file="qspire/test/IdQ/IdQCode.py"
 
     with open(file, "r") as f:
         code = f.read()
@@ -25,7 +25,7 @@ def test_detector():
     detector = Detector(IdQ)
     smells=detector.detect(file)
 
-    print(type(smells))
+    #print(type(smells))
     
 
     for smell in smells:

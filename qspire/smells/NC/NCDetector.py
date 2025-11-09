@@ -1,7 +1,10 @@
+import traceback
 from smells.Detector import Detector
 from smells.NC.NC import NC
 from smells.utils.RunExecuteParametersCalls import count_functions
 from smells.utils.config_loader import get_detector_option
+from smells.utils.OperationCircuitTracker import analyze_quantum_file
+
 
 def group_calls_by_circuit(run_calls, execute_calls, bind_calls, assign_calls):
     """
@@ -55,9 +58,45 @@ class NCDetector(Detector):
     def detect(self, file):
         smells = []
 
-        run_calls, execute_calls, bind_calls, assign_calls = count_functions(file, debug=False)
+        #print("Detect NC chiamato")
 
+
+        run_calls, execute_calls, bind_calls, assign_calls = count_functions(file, debug=False)
         grouped_circuits = group_calls_by_circuit(run_calls, execute_calls, bind_calls, assign_calls)
+
+
+        """try: 
+            run_calls, execute_calls, bind_calls, assign_calls = count_functions(file, debug=False)
+            grouped_circuits = group_calls_by_circuit(run_calls, execute_calls, bind_calls, assign_calls)
+
+            print("Grouoed Circtuits")
+            for circuit in grouped_circuits:
+                import pprint
+                pprint.pp(grouped_circuits[circuit])
+
+        except Exception as e:
+            print("Errore in calls1 (Exception):", e)
+            traceback.print_exc()
+
+        except BaseException as e:   # catch everything else (like SystemExit, KeyboardInterrupt)
+            print("Errore in calls1 (BaseException):", e)
+            traceback.print_exc()
+
+        
+
+        try:
+            calls=count_functions(file)
+
+            #circuits = analyze_quantum_file(file)
+            print(calls)
+            print("Calls")
+            for circuit in calls:
+                print(circuit)
+        except Exception as e: 
+            print("Errore in calls2")
+            print(e)"""
+
+
 
 
         for circuit in grouped_circuits:

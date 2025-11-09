@@ -7,6 +7,10 @@ from smells.NC.NCExplainer import NCExplainer
 
 
 
+
+
+
+
 def test_detector():
     """
         Test the custom gate detector with example code.
@@ -18,7 +22,7 @@ def test_detector():
         
     """
 
-    file="test/NC/NCCode.py"
+    file="qspire/test/NC/NCCode.py"
     
     with open(file, "r") as f:
         code = f.read()
@@ -28,6 +32,7 @@ def test_detector():
 
 
 
+    """
     for smell in smells:
 
         print(smell.as_dict())
@@ -41,6 +46,7 @@ def test_detector():
         
         
         break
-
+    """
+        
 if __name__ == "__main__":
     test_detector()

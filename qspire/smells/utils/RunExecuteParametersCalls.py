@@ -26,10 +26,13 @@ class RunExecuteParametersCalls:
             debug: If True, print debugging information
             
         Returns:
-            Tuple of (run_calls, execute_calls, bind_parameters_calls, assign_parameters_calls)
+            Tuple of (run_calls, execute_calls, assign_parameters_calls, bind_parameters_calls)
             where each is a list of dictionaries with structure:
             [{'circuit': 'qc', 'row': 10, 'column_start': 5, 'column_end': 8}, ...]
         """
+
+        #debug=True
+
         # Reset state
         self.call_info = defaultdict(list)
         self.debug = debug
@@ -82,30 +85,43 @@ class RunExecuteParametersCalls:
             try:
                 # Execute the instrumented code
                 exec(compiled_code, exec_globals)
+            except SystemExit as e:
+                # Catch sys.exit() calls - this is expected behavior in analyzed code
+                if debug:
+                    print(f"Code called sys.exit({e.code}), continuing with analysis")
+                # Continue normally - we've already collected the function calls
+            except Exception as e:
+                # Catch any other exceptions from the analyzed code
+                if debug:
+                    print(f"Exception during code execution: {e}")
+                    import traceback
+                    traceback.print_exc()
+                # Continue normally - we've already collected function calls up to this point
             finally:
                 # Restore original path
                 sys.path[:] = original_path
                 
         except Exception as e:
+            # This catches compilation errors or other critical issues
             if debug:
-                print(f"Error executing instrumented code: {e}")
+                print(f"Error during code compilation or setup: {e}")
                 import traceback
                 traceback.print_exc()
         
         # Return the results as separate lists
         run_calls = self.call_info['run']
         execute_calls = self.call_info['execute']
-        bind_parameters_calls = self.call_info['bind_parameters']
         assign_parameters_calls = self.call_info['assign_parameters']
+        bind_parameters_calls = self.call_info['bind_parameters']
         
         if debug:
             print(f"Dynamic analysis results:")
             print(f"  run: {len(run_calls)} calls")
             print(f"  execute: {len(execute_calls)} calls")
-            print(f"  bind_parameters: {len(bind_parameters_calls)} calls")
             print(f"  assign_parameters: {len(assign_parameters_calls)} calls")
+            print(f"  bind_parameters: {len(bind_parameters_calls)} calls")
         
-        return run_calls, execute_calls, bind_parameters_calls, assign_parameters_calls
+        return run_calls, execute_calls, assign_parameters_calls, bind_parameters_calls
     
     def _track_function_call(self, func_name: str, row: int, col_start: int, col_end: int, 
                            original_obj, original_method_name, circuit_info, *args, **kwargs):
@@ -311,4 +327,3 @@ def count_functions(filepath: str, debug: bool = False) -> Dict[str, List[List[i
     """
     tracker = RunExecuteParametersCalls()
     return tracker.analyze_file(filepath, debug)
-

@@ -2743,6 +2743,8 @@ def extract_variable_names(line_text):
         'indexing': indexing
     }
 
+
+
 def make_fix(err_type, err_msg, line_text, lines, line_no):
     """
     Return Python code lines to insert before the error line,
@@ -2778,8 +2780,10 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
                 # Function/method calls that typically return specific types
                 if '.result()' in assignment:
                     return 'dict'  # Results are often dict-like
+                    """elif '.run(' in assignment:
+                        return 'object'  # Job objects"""
                 elif '.run(' in assignment:
-                    return 'object'  # Job objects
+                    return 'unknown'  # Job objects
                 elif '.get(' in assignment or '.json(' in assignment:
                     return 'dict'
                 elif '.read(' in assignment or '.text' in assignment:
@@ -2803,8 +2807,10 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
                 elif 'dict(' in assignment or '{' in assignment:
                     return 'dict'
                 else:
-                    return 'object'  # Generic object for unknown cases
-        return 'object'  # Default fallback
+                    return 'unkown'
+                    #return 'object'  # Generic object for unknown cases
+        return 'unkown'
+        #return 'object'  # Default fallback
     
     def create_default_value(var_type):
         """Create appropriate default value based on inferred type"""
@@ -2815,9 +2821,14 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
             'bool': 'False',
             'list': '[]',
             'dict': '{}',
-            'object': 'type("MockObject", (), {"__getattr__": lambda self, name: lambda *args, **kwargs: None, "__call__": lambda self, *args, **kwargs: None, "__iter__": lambda self: iter([]), "__len__": lambda self: 0, "__getitem__": lambda self, key: None, "__str__": lambda self: "", "__int__": lambda self: 0})()'
+            'object': 'type("MockObject", (), {"__getattr__": lambda self, name: lambda *args, **kwargs: None, "__call__": lambda self, *args, **kwargs: None, "__iter__": lambda self: iter([]), "__len__": lambda self: 0, "__getitem__": lambda self, key: None, "__str__": lambda self: "", "__int__": lambda self: 0})()',
+            #'unknown': 'type("MockObject", (), { "__getattr__": lambda self, name: lambda *args, **kwargs: None,  "__call__": lambda self, *args, **kwargs: None, "__iter__": lambda self: iter([]),  "__len__": lambda self: 0, "__getitem__": lambda self, key: None,  "__str__": lambda self: "",  "__int__": lambda self: 0 })()'
+
+            'unknown': 'type("_Unknown", (), { "__getattr__": lambda self, name: self,"__call__": lambda self, *args, **kwargs: self,"__getitem__": lambda self, key: self,"__iter__": lambda self: iter([]), "__bool__": lambda self: True, "__str__": lambda self: "", "__repr__": lambda self: "_Unknown()", "__len__": lambda self: 0, "__eq__": lambda self, other: False, "__add__": lambda self, other: self, "__sub__": lambda self, other: self,"__mul__": lambda self, other: self,"__truediv__": lambda self, other: sel})()'
+
         }
-        return defaults.get(var_type, defaults['object'])
+        return defaults.get(var_type, defaults['unknown'])
+        #return defaults.get(var_type, defaults['object'])
     
     # ============ TYPE ERRORS ============
     if err_type == 'TypeError':
@@ -3175,27 +3186,6 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
                 # Get smart mock value using dynamic detection
                 mock_result = get_smart_mock_value(missing_attr, is_callable)
                 mock_value = mock_result  # This will be the lambda or "1"
-
-                """
-                # Determine if we need a callable or simple value based on context
-                is_callable = '(' in line_text[line_text.find(missing_attr):line_text.find(missing_attr) + 50] if missing_attr in line_text else False
-                #mock_value = "lambda *args, **kwargs: None" if is_callable else "None"
-                mock_value = "lambda *args, **kwargs: None" if is_callable else "1"
-                
-                # Split the object path to get base object and attribute chain
-                path_parts = obj_path.split('.')
-                base_obj = path_parts[0]
-                
-                if len(path_parts) == 1:
-                    # Simple case: obj.attr
-                    return {'action': 'insert_at_position',
-                        'target_line': insertion_idx,
-                        'lines': [
-                        f"{indent}# auto-fix: add missing attribute {missing_attr}",
-                        f"{indent}if not hasattr({obj_path}, '{missing_attr}'):",
-                        f"{indent}    setattr({obj_path}, '{missing_attr}', {mock_value})",
-                    ]}
-                """
 
                
                 
@@ -3569,7 +3559,8 @@ def make_fix(err_type, err_msg, line_text, lines, line_no):
         'deleted_content': deleted_content,
         'lines_deleted': lines_deleted
     }
-    
+ 
+
 
 def get_type_for_attribute(missing_attr, is_callable):
     """
