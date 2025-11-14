@@ -2080,6 +2080,7 @@ function highlightDynamicSmell(smell, smellIndex, decorationsByType, editor) {
                 // Extract all unique row numbers from various tuple formats
                 const allRowNumbers = [];
                 
+                /*
                 smell.rows.forEach(rowStr => {
                     // Remove parentheses and split by comma to get all numbers
                     const cleanStr = rowStr.replace(/[()]/g, ''); // Remove ( and )
@@ -2090,8 +2091,22 @@ function highlightDynamicSmell(smell, smellIndex, decorationsByType, editor) {
                         .filter(num => !isNaN(num)); // Remove any NaN values
                     
                     allRowNumbers.push(...numbers);
+                });*/
+
+                smell.rows.forEach(item => {
+                    if (typeof item === "number") {
+                        allRowNumbers.push(item);
+                    } else {
+                        // treat it as a string representation "(9,10)"
+                        const numbers = item
+                            .replace(/[()]/g, "")
+                            .split(",")
+                            .map(n => parseInt(n.trim(), 10))
+                            .filter(n => !isNaN(n));
+                        allRowNumbers.push(...numbers);
+                    }
                 });
-                
+                                
                 // Get unique row numbers
                 const uniqueRows = [...new Set(allRowNumbers)];
                 
@@ -2187,7 +2202,7 @@ function highlightDynamicSmell(smell, smellIndex, decorationsByType, editor) {
                 range: range,
                 hoverMessage: new vscode.MarkdownString(`**Code Smell: ${smell.type}**\n\n` +
                     `${smell.description || 'LC smell detected'}\n\n` +
-                    `This smell affects the entire file.`)
+                    `This smell affects the whole circuit.`)
             });
             
             console.log('LC decoration created on last line:', lastLineNumber + 1);
@@ -2650,6 +2665,7 @@ function highlightStaticSmell(smell, smellIndex, decorationsByType, editor) {
                 // Extract all unique row numbers from various tuple formats
                 const allRowNumbers = [];
                 
+                /*
                 smell.rows.forEach(rowStr => {
                     // Remove parentheses and split by comma to get all numbers
                     const cleanStr = rowStr.replace(/[()]/g, ''); // Remove ( and )
@@ -2660,8 +2676,22 @@ function highlightStaticSmell(smell, smellIndex, decorationsByType, editor) {
                         .filter(num => !isNaN(num)); // Remove any NaN values
                     
                     allRowNumbers.push(...numbers);
+                });*/
+
+                smell.rows.forEach(item => {
+                    if (typeof item === "number") {
+                        allRowNumbers.push(item);
+                    } else {
+                        // treat it as a string representation "(9,10)"
+                        const numbers = item
+                            .replace(/[()]/g, "")
+                            .split(",")
+                            .map(n => parseInt(n.trim(), 10))
+                            .filter(n => !isNaN(n));
+                        allRowNumbers.push(...numbers);
+                    }
                 });
-                
+                                
                 // Get unique row numbers
                 const uniqueRows = [...new Set(allRowNumbers)];
                 
@@ -2760,7 +2790,7 @@ function highlightStaticSmell(smell, smellIndex, decorationsByType, editor) {
                     range: range,
                     hoverMessage: new vscode.MarkdownString(`**Code Smell: ${smell.type}**\n\n` +
                         `${smell.description || 'LC smell detected'}\n\n` +
-                        `This smell affects the entire file.`)
+                        `This smell affects the whole circuit.`)
                 });
                 
                 console.log('LC decoration created on last line:', lastLineNumber + 1);

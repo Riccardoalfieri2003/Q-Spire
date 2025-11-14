@@ -16,7 +16,7 @@ def test_detector():
         
     """
     
-    file="test/ROC/ROCCode.py"
+    file="qspire/test/ROC/ROCCode.py"
     
     with open(file, "r") as f:
         code = f.read()
@@ -27,6 +27,11 @@ def test_detector():
 
 
     for smell in smells:
+
+        import pprint
+        pprint.pp(smell.as_dict())
+        
+        """
         explanation_generator = Explainer.explain(code, smell, 'dynamic')
         
         if explanation_generator:
@@ -36,6 +41,8 @@ def test_detector():
         
         
         break
+        """
+        
 
 if __name__ == "__main__":
     test_detector()

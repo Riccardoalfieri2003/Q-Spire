@@ -66,7 +66,13 @@ class ROCExplainer(Explainer):
     
     def get_prompt(self, code, smell, method):
 
-        smell.rows = sorted(set(num for group in smell.rows for num in group))
+        
+
+        #smell.rows = sorted(set(num for group in smell.rows for num in group))
+
+        smell.rows = sorted(
+            {num for item in smell.rows for num in (item if isinstance(item, (list, tuple, set)) else [item])}
+        )
 
 
 
