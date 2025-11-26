@@ -226,7 +226,7 @@ class ROCDetector(Detector):
                             for op in ops:
                                 print(
                                     f"        - {op['operation_name']} "
-                                    f"(row {op['row']}, col {op['column_start']}–{op['column_end']})"
+                                    f"(row {op['row']}, col {op['column_start']}-{op['column_end']})"
                                 )
 
                     # Print where it repeats
