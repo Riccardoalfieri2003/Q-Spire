@@ -29,9 +29,7 @@ These smells are based on empirical research in quantum software engineering.
 
 ## Installation
 
-# Installation
-
-## Prerequisites
+### Prerequisites
 
 Before installing QSpire, ensure you have the following:
 
@@ -39,7 +37,7 @@ Before installing QSpire, ensure you have the following:
 * **VS Code**: Version 1.60.0 or higher
 * **Cloned QSpire repository**: The project must be opened in VS Code
 
-## Installation Steps
+### Installation Steps
 
 ### 1. Clone the Repository
 
