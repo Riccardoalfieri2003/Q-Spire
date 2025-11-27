@@ -29,33 +29,56 @@ These smells are based on empirical research in quantum software engineering.
 
 ## Installation
 
-### Prerequisites
+# Installation
 
-- Python 3.8 or higher
-- VS Code 1.60.0 or higher
-- Qiskit (preferably 2.2.2) framework installed 
+## Prerequisites
 
-### Extension Installation
+Before installing QSpire, ensure you have the following:
 
-1. Clone the repository
-2. Open VS Code
-3. Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac) to open the Command Palette
-4. Type `>Extensions: Install from VSIX...`
-5. Select the downloaded `qspire-0.0.1.vsix` file
-6. Restart VS Code if prompted
+* **Python**: Version 3.8 to 3.13 (3.8 or higher, but less than 3.14)
+* **VS Code**: Version 1.60.0 or higher
+* **Cloned QSpire repository**: The project must be opened in VS Code
 
-### CLI Installation
+## Installation Steps
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Riccardoalfieri2003/Q-Spire
-   cd qspire
-   ```
+### 1. Clone the Repository
 
-2. Install the CLI tool:
-   ```bash
-   pip install -e .
-   ```
+```bash
+git clone https://github.com/Riccardoalfieri2003/Q-Spire
+```
+
+### 2. Open in VS Code
+
+* Open VS Code
+* Open the cloned QSpire project folder
+
+### 3. Install CLI and Necessary Libraries
+
+* Open the terminal in VS Code (`Terminal → New Terminal`)
+* Run the following command in the terminal:
+
+```bash
+pip install -e .
+```
+
+This installs the QSpire CLI tool and all required dependencies.
+
+### 4. Install GUI Extension
+
+* In VS Code, press `Ctrl+Shift+P` (or `Cmd+Shift+P` on Mac) to open the Command Palette
+* Type `>Extensions: Install from VSIX...`
+* Select the `qspire-0.0.1.vsix` file from the project directory
+
+### 5. Final Step
+
+* Restart VS Code if prompted to complete the installation
+
+## Verification
+
+After installation, you should be able to:
+
+* Use the `qspire` command in your terminal
+* Access QSpire commands through VS Code's Command Palette
 
 ## Usage
 

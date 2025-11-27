@@ -4,12 +4,14 @@ Version: 1.0.0
 Summary: QSpire is a Tool to detect Quantum Code Smells in the Qiskit framework
 Requires-Python: >=3.10
 Requires-Dist: click
-Requires-Dist: qiskit==2.2.2
-Requires-Dist: qiskit-aer==0.15.1
-Requires-Dist: qiskit_braket_provider==0.7.0
-Requires-Dist: qiskit-ibm-runtime==0.31.0
+Requires-Dist: qiskit==2.2.3
+Requires-Dist: qiskit-aer==0.17.2
+Requires-Dist: qiskit_braket_provider==0.8.0
+Requires-Dist: qiskit-ibm-provider==0.11.0
+Requires-Dist: qiskit-ibm-runtime==0.43.1
 Requires-Dist: qiskit-ionq==1.0.2
 Requires-Dist: qiskit-qasm3-import==0.6.0
+Requires-Dist: openai==2.7.1
 Dynamic: description
 Dynamic: requires-dist
 Dynamic: requires-python
@@ -66,7 +68,6 @@ These smells are based on empirical research in quantum software engineering.
 1. Clone the repository:
    ```bash
    git clone https://github.com/Riccardoalfieri2003/Q-Spire
-   cd qspire
    ```
 
 2. Install the CLI tool:

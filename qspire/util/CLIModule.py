@@ -167,48 +167,51 @@ def qspire(method, resource, outputfolder):
     """
     
     try:
-        # Check if method was specified FIRST
+        # Your existing validation is correct
         if method is None:
             click.echo("Error: You must specify either -static or -dynamic", err=True)
             click.echo("\nUsage: qspire (-static | -dynamic) resource [outputfolder]")
             click.echo("Try 'qspire --help' for more information.")
             sys.exit(1)
         
-        # NOW check if resource exists
+        
+        
+        # Execute the appropriate method
+        if method == 'static': 
+            result = static_method(resource, outputfolder)
+        elif method == 'dynamic': 
+            result = dynamic_method(resource, outputfolder)
+        else:
+            click.echo(f"❌ Error: Method '{method}' is not available.", err=True)
+            sys.exit(1)
+
+        # Rest of your code remains the same...
         if not os.path.exists(resource):
             click.echo(f"❌ Error: Resource path '{resource}' does not exist!", err=True)
             sys.exit(1)
-        
-        # Execute the appropriate method
-        if method == 'static': result = static_method(resource, outputfolder)
-        elif method == 'dynamic': result = dynamic_method(resource, outputfolder)
         
         # Print results
         click.echo("\n" + "="*50)
         click.echo("✅ Results:")
 
         if is_file(resource): 
-            for smell in result: print(smell.as_dict())
+            for smell in result: 
+                print(smell.as_dict())
         else:
             for file in result:
-
-                if len(result[file])==0: 
+                if len(result[file]) == 0: 
                     print(f"No Smells in {file}\n")
                     continue
-
                 print(f"Smells in {file}:")
-                for smell in result[file]: print(smell.as_dict())
-
+                for smell in result[file]: 
+                    print(smell.as_dict())
                 print()
 
         click.echo("="*50 + "\n")
         
-    
     except Exception as e:
         click.echo(f"❌ Error occurred: {str(e)}", err=True)
         sys.exit(1)
-        raise
-
 
 if __name__ == "__main__":
     qspire()

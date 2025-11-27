@@ -4,6 +4,7 @@
   "description": "Detect Quantum Code Smells in Qiskit Framework for Python with Static and Dynamic Analysis",
   "version": "0.0.1",
   "publisher": "Riccardoalfieri2003",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Riccardoalfieri2003/qspire"

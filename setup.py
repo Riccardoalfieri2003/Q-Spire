@@ -9,6 +9,7 @@ with open('README.md') as f:
 setup(
     name='qspire',
     version='1.0.0',
+    license='MIT',
 
     packages=find_packages(where='qspire'),  # Look for packages inside 'qspire' folder
     package_dir={'': 'qspire'},  # Root package is in 'qspire' directory
