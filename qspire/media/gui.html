@@ -1179,9 +1179,9 @@ body.dark-mode .smell-detail,
                         <div class="file-display" id="file-display">
                             No file selected
                         </div>
-                        <button class="file-browse-btn" onclick="document.getElementById('file-input').click()">
+                        <!--<button class="file-browse-btn" onclick="document.getElementById('file-input').click()">
                             Browse Files
-                        </button>
+                        </button> -->
                         <input type="file" id="file-input" accept=".py,.qasm,.q" onchange="handleFileSelect(event)">
                     </div>
                 </div>
@@ -1218,8 +1218,8 @@ body.dark-mode .smell-detail,
 
             <div class="main-card">
 
-                <div class="threshold-header" onclick="toggleThresholds()">
-                    <h3 class="section-subtitle">Custom Threshold Smell Values</h3>
+                <div class="threshold-header" style="height:4em;" onclick="toggleThresholds()">
+                    <h3 class="section-title" style="padding-top: 15px;">Custom Threshold Smell Values</h3>
                     <div class="expand-icon" id="expand-icon">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>

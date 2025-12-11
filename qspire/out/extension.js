@@ -1,4 +1,7 @@
 "use strict";
+
+let globalPythonPath = undefined;
+
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -181,15 +184,34 @@ function createWebviewPanel(context) {
 
 
 
-function activate(context) {
-    // Create status bar item
-    /*
-    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-    statusBarItem.text = '$(graph) QSmell Tool';
-    statusBarItem.command = 'mytool.toggleGui';
-    statusBarItem.tooltip = 'Toggle QSmell Tool GUI';
-    statusBarItem.show();
-    context.subscriptions.push(statusBarItem);*/
+async function activate(context) {
+
+    // ✅ 1. Get Python extension and interpreter
+    const pythonExt = vscode.extensions.getExtension("ms-python.python");
+    let pythonPath = undefined;
+
+    if (pythonExt) {
+    if (!pythonExt.isActive) {
+        await pythonExt.activate();
+    }
+
+    const pythonApi = pythonExt.exports;
+
+    const execDetails = pythonApi.settings.getExecutionDetails();
+    pythonPath = execDetails?.execCommand?.[0];
+
+    console.log("🔍 Using Python interpreter:", pythonPath);
+    } else {
+    vscode.window.showWarningMessage("Python extension not found. Using system python.");
+    }
+
+    if (pythonExt) {
+        await pythonExt.activate();
+        const pythonApi = pythonExt.exports;
+        const execDetails = pythonApi.settings.getExecutionDetails();
+        globalPythonPath = execDetails?.execCommand?.[0];
+        console.log("🔍 Using Python interpreter:", globalPythonPath);
+    }
 
     // Register the toggle command
     const toggleCommand = vscode.commands.registerCommand('mytool.toggleGui', () => {
@@ -226,196 +248,6 @@ function activate(context) {
 
 
 
- // ❌ REMOVE THIS: The panel doesn't exist yet during activation
-    // // Get the absolute path to your extension
-    // const extensionPath = context.extensionPath;
-    // console.log('Extension path:', extensionPath);
-
-    // // Get the absolute path to the file you want to import
-    // const extensionJsPath = vscode.Uri.file(
-    //     path.join(extensionPath, 'out', 'extension.js')
-    // );
-    
-    // // Convert to webview URI
-    // const extensionJsUri = panel.webview.asWebviewUri(extensionJsPath);
-    // console.log('Extension.js webview URI:', extensionJsUri.toString());
-
-
-
-
-
-
-
-
-/*
-function createWebviewPanel(context) {
-    panel = vscode.window.createWebviewPanel(
-        'qsmellTool',
-        'QSmell Tool',
-        vscode.ViewColumn.Beside,
-        {
-            enableScripts: true,
-            retainContextWhenHidden: true,
-            localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'media'))]
-        },
-        vscode.ViewColumn.One,
-        {
-            enableScripts: true,
-            retainContextWhenHidden: true
-        }
-    );
-
-    // Load the HTML Content
-    const htmlPath = path.join(context.extensionPath, 'media', 'gui.html');
-    const htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
-
-    if (fs.existsSync(htmlPath)) {
-        let html = fs.readFileSync(htmlPath, 'utf8');
-        
-        // ✅ Inject the webview URIs, not local file paths
-        html = html.replace('</head>', `
-            <script>
-                window.extensionJsUri = "${extensionJsUri.toString()}";
-                window.utilsUri = "${utilsUri.toString()}";
-            </script>
-        </head>`);
-        
-        panel.webview.html = html;
-    } else {
-        panel.webview.html = getEmbeddedHTML();
-    }
-
-
-    // Send active file info immediately when panel is created
-    const activeEditor = vscode.window.activeTextEditor;
-    if (activeEditor) {
-        panel.webview.postMessage({
-            command: 'setActiveFile',
-            filePath: activeEditor.document.uri.fsPath,
-            fileName: path.basename(activeEditor.document.uri.fsPath)
-        });
-    }
-
-    // Also listen for active editor changes while the panel is open
-    const changeEditorDisposable = vscode.window.onDidChangeActiveTextEditor(editor => {
-        if (panel && editor) {
-            panel.webview.postMessage({
-                command: 'setActiveFile',
-                filePath: editor.document.uri.fsPath,
-                fileName: path.basename(editor.document.uri.fsPath)
-            });
-        }
-    });
-
-    panel.onDidDispose(() => {
-        panel = undefined;
-        changeEditorDisposable.dispose();
-    }, null, context.subscriptions);
-
-
-     // ✅ Create webview URIs for all the JS files you want to import
-    const extensionJsUri = panel.webview.asWebviewUri(
-        vscode.Uri.file(path.join(context.extensionPath, 'out', 'extension.js'))
-    );
-    
-    const utilsUri = panel.webview.asWebviewUri(
-        vscode.Uri.file(path.join(context.extensionPath, 'utils', 'helpers.js'))
-    );
-
-    console.log('Extension.js webview URI:', extensionJsUri.toString());
-    console.log('Helpers.js webview URI:', utilsUri.toString());
-
-
-
-    // ✅ ADD THIS: Create the webview URI for extension.js
-    const extensionJsPath = vscode.Uri.file(
-        path.join(context.extensionPath, 'out', 'extension.js')
-    );
-    //const extensionJsUri = panel.webview.asWebviewUri(extensionJsPath);
-    console.log('Extension.js webview URI:', extensionJsUri.toString());
-
-    // ✅ ADD THIS: Create the absolute path to the extension
-    const extensionAbsolutePath = context.extensionPath;
-    console.log('Extension absolute path:', extensionAbsolutePath);
-
-
-    // Handle disposal
-    panel.onDidDispose(() => {
-        panel = undefined;
-    });
-
-    // Handle messages from the webview
-    panel.webview.onDidReceiveMessage(async (message) => {
-        console.log('Extension received message:', message);
-        
-        switch (message.command) {
-            case 'getActiveFile':
-                console.log('Handling getActiveFile request');
-                sendActiveFileInfo();
-                break;
-            
-            case 'analyze':
-                console.log('Handling analyze request');
-                await handleAnalysis(message);
-                break;
-
-            case 'callPythonExplain':
-                try {
-                    const result = await callPythonExplain(
-                        message.filePath, 
-                        message.smell, 
-                        message.method
-                    );
-                    // Send result back to webview
-                    panel.webview.postMessage({
-                        command: 'pythonExplainResult',
-                        data: result
-                    });
-                } catch (error) {
-                    panel.webview.postMessage({
-                        command: 'pythonExplainError',
-                        error: error.message
-                    });
-                }
-                break;
-
-            case 'getExtensionPath':
-                panel.webview.postMessage({
-                    command: 'extensionPath',
-                    path: context.extensionPath,
-                    extensionJsUri: extensionJsUri.toString()
-                });
-                break;
-                
-            default:
-                console.log('Unknown message command:', message.command);
-        }
-    });
-
-
-
-
-    // Send initial active file info after a short delay
-    setTimeout(() => {
-        console.log('Sending initial active file info');
-        sendActiveFileInfo();
-    }, 1000);
-
-    // Set up listener for active editor changes
-    const activeEditorListener = vscode.window.onDidChangeActiveTextEditor(() => {
-        console.log('Active editor changed');
-        if (panel) {
-            sendActiveFileInfo();
-        }
-    });
-    
-    // Make sure to dispose the listener when panel is disposed
-    panel.onDidDispose(() => {
-        activeEditorListener.dispose();
-    });
-}
-
-*/
 
 function createWebviewPanel(context) {
     panel = vscode.window.createWebviewPanel(
@@ -1042,68 +874,6 @@ function sendActiveFileInfo() {
 async function handleAnalysis(message) {
     if (!panel) return;
 
-    /*
-    try {
-        let filePath = null;
-        let content = null;
-        let fileName = null;
-
-        console.log('handleAnalysis called with message:', message);
-
-        if (message.useActiveFile) {
-            // Use active editor file
-            const activeEditor = vscode.window.activeTextEditor;
-            console.log('Active editor check:', {
-                activeEditor: !!activeEditor,
-                document: activeEditor ? !!activeEditor.document : false,
-                uri: activeEditor?.document?.uri?.fsPath
-            });
-            
-            if (activeEditor && activeEditor.document) {
-                filePath = activeEditor.document.uri.fsPath;
-                content = activeEditor.document.getText();
-                fileName = path.basename(filePath);
-                console.log('Using active file:', { filePath, fileName, contentLength: content.length });
-            } else {
-                console.error('No active file available - activeEditor:', !!activeEditor);
-                throw new Error('No active file available - please open a file first');
-            }
-        } else if (message.fileName) {
-            // Use the file path provided in the message
-            filePath = message.fileName;
-            fileName = path.basename(filePath);
-            console.log('Using provided file path:', filePath);
-            
-            try {
-                content = fs.readFileSync(filePath, 'utf8');
-                console.log('File content loaded, length:', content.length);
-            } catch (readError) {
-                console.error('Failed to read file:', readError);
-                throw new Error(`Failed to read file: ${readError.message}`);
-            }
-        } else {
-            // Ask user to select a file
-            console.log('Asking user to select a file');
-            const uri = await vscode.window.showOpenDialog({
-                canSelectMany: false,
-                openLabel: 'Choose file to analyze',
-                filters: {
-                    'Python files': ['py'],
-                    'Quantum files': ['qasm', 'q'],
-                    'All files': ['*']
-                }
-            });
-
-            if (!uri || uri.length === 0) {
-                vscode.window.showWarningMessage('No file selected for analysis.');
-                return;
-            }
-
-            filePath = uri[0].fsPath;
-            content = fs.readFileSync(filePath, 'utf8');
-            fileName = path.basename(filePath);
-        }
-        */
 
         try {
         let filePath = null;
@@ -1297,13 +1067,23 @@ async function callPythonDetectSmells(filePath, method) {
 
         
         // Find the correct Python command instead of hardcoding
+        /*
         let pythonCmd;
         try {
             pythonCmd = await findPythonCommand();
         } catch (error) {
             reject(error);
             return;
+        }*/
+
+        // Always prefer the interpreter VS Code is using (venv)
+        let pythonCmd = globalPythonPath;
+
+        if (!pythonCmd) {
+            console.warn("⚠️ VS Code Python extension not available — fallback to system Python.");
+            pythonCmd = await findPythonCommand();
         }
+        console.log("pythonCmd: ",pythonCmd)
 
         console.log(`Project root: ${projectRoot}`);
         console.log(`Calling Python script: ${pythonScriptPath} with file: ${filePath}`);

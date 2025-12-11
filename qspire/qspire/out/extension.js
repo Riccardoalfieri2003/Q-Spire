@@ -1,86 +1,4 @@
 "use strict";
-/*
-import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
-
-let panel: vscode.WebviewPanel | undefined;
-
-export function activate(context: vscode.ExtensionContext) {
-  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-  statusBarItem.text = '$(graph) Analyzer';
-  statusBarItem.command = 'mytool.toggleGui';
-  statusBarItem.tooltip = 'Toggle Code Analyzer GUI';
-  statusBarItem.show();
-
-  context.subscriptions.push(statusBarItem);
-
-  const toggleCommand = vscode.commands.registerCommand('mytool.toggleGui', () => {
-    if (panel) {
-      panel.dispose();
-      panel = undefined;
-    } else {
-      panel = vscode.window.createWebviewPanel(
-        'codeAnalyzer',
-        'Code Analyzer GUI',
-        vscode.ViewColumn.One,
-        { enableScripts: true }
-      );
-
-      const htmlPath = path.join(context.extensionPath, 'media', 'gui.html');
-      const html = fs.readFileSync(htmlPath, 'utf8');
-      panel.webview.html = html;
-
-      panel.onDidDispose(() => {
-        panel = undefined;
-      });
-
-      panel.webview.onDidReceiveMessage(async message => {
-        if (message.command === 'analyze') {
-          // 1. Try to get the active editor
-          const editor = vscode.window.activeTextEditor;
-
-          if (editor && editor.document) {
-            const document = editor.document;
-            const filePath = document.uri.fsPath;
-            const content = document.getText();
-
-            vscode.window.showInformationMessage(`Using active file: ${filePath}`);
-            // Do your analysis here
-            console.log("Analyzing active file:", content.slice(0, 100));
-            // You can also send content back to the WebView if needed
-
-          } else {
-            // 2. Ask the user to pick a file
-            const uri = await vscode.window.showOpenDialog({
-              canSelectMany: false,
-              openLabel: 'Choose file to analyze',
-              filters: {
-                'Code files': ['py'],
-              }
-            });
-
-            if (!uri || uri.length === 0) {
-              vscode.window.showWarningMessage('No file selected.');
-              return;
-            }
-
-            const filePath = uri[0].fsPath;
-            const content = fs.readFileSync(filePath, 'utf8');
-
-            vscode.window.showInformationMessage(`Using selected file: ${filePath}`);
-            console.log("Analyzing selected file:", content.slice(0, 100));
-          }
-        }
-      });
-
-
-    }
-  });
-
-  context.subscriptions.push(toggleCommand);
-}
-*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -122,7 +40,22 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const child_process_1 = require("child_process");
 let panel;
-function activate(context) {
+async function activate(context) {
+    // ✅ 1. Get Python extension and interpreter
+    const pythonExt = vscode.extensions.getExtension("ms-python.python");
+    let pythonPath = undefined;
+    if (pythonExt) {
+        if (!pythonExt.isActive) {
+            await pythonExt.activate();
+        }
+        const pythonApi = pythonExt.exports;
+        const execDetails = pythonApi.settings.getExecutionDetails();
+        pythonPath = execDetails?.execCommand?.[0];
+        console.log("🔍 Using Python interpreter:", pythonPath);
+    }
+    else {
+        vscode.window.showWarningMessage("Python extension not found. Using system python.");
+    }
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
     statusBarItem.text = '$(graph) Analyzer';
     statusBarItem.command = 'mytool.toggleGui';
@@ -183,7 +116,7 @@ function activate(context) {
                     }
                     // Execute Python analysis
                     try {
-                        const results = await runQSpireAnalysis(filePath, message.method);
+                        const results = await runQSpireAnalysis(filePath, message.method, pythonPath);
                         // Send results back to webview
                         if (panel) {
                             panel.webview.postMessage({
@@ -212,19 +145,72 @@ function activate(context) {
 }
 /**
  * Run QSpire analysis using Python command
- */
-async function runQSpireAnalysis(filePath, method) {
+
+async function runQSpireAnalysis(filePath: string, method: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    // Determine which flag to use
+    const flag = method === 'dynamic' ? '-dynamic' : '-static';
+    
+    // Get the workspace folder to determine the correct working directory
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const cwd = workspaceFolder ? workspaceFolder.uri.fsPath : path.dirname(filePath);
+    
+    // Spawn qspire command
+    // Note: Assumes qspire is installed and available in PATH (in venv)
+    const pythonProcess = spawn('qspire', [flag, filePath], {
+      cwd: cwd,
+      shell: true  // Use shell to ensure venv activation is respected
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`QSpire exited with code ${code}: ${stderr}`));
+        return;
+      }
+
+      try {
+        // Parse the output to extract smells
+        const smells = parseQSpireOutput(stdout, filePath);
+        resolve({
+          filePath: filePath,
+          smells: {
+            smells: smells
+          }
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+
+    pythonProcess.on('error', (error) => {
+      reject(new Error(`Failed to start QSpire: ${error.message}`));
+    });
+  });
+}*/
+async function runQSpireAnalysis(filePath, method, pythonPath) {
     return new Promise((resolve, reject) => {
-        // Determine which flag to use
         const flag = method === 'dynamic' ? '-dynamic' : '-static';
-        // Get the workspace folder to determine the correct working directory
+        // Workspace working directory
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         const cwd = workspaceFolder ? workspaceFolder.uri.fsPath : path.dirname(filePath);
-        // Spawn qspire command
-        // Note: Assumes qspire is installed and available in PATH (in venv)
-        const pythonProcess = (0, child_process_1.spawn)('qspire', [flag, filePath], {
-            cwd: cwd,
-            shell: true // Use shell to ensure venv activation is respected
+        // Use selected venv Python, or fallback
+        const pythonCmd = pythonPath || "python";
+        console.log("🚀 Running QSpire with:", pythonCmd);
+        // Run `python -m qspire -dynamic file.py`
+        const pythonProcess = (0, child_process_1.spawn)(pythonCmd, ['-m', 'qspire', flag, filePath], {
+            cwd,
+            shell: false // NO NEED for shell when calling python directly
         });
         let stdout = '';
         let stderr = '';
@@ -240,13 +226,10 @@ async function runQSpireAnalysis(filePath, method) {
                 return;
             }
             try {
-                // Parse the output to extract smells
                 const smells = parseQSpireOutput(stdout, filePath);
                 resolve({
                     filePath: filePath,
-                    smells: {
-                        smells: smells
-                    }
+                    smells: { smells }
                 });
             }
             catch (error) {
