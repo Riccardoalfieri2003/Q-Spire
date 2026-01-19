@@ -93,10 +93,11 @@ def print_circuit_batches(batches):
 
 
 def detect_iq_smell_from_batches(batches, max_distance, circuit_name):
+    
     """
     Detect IQ (Idle Qubit) smell using circuit batches.
     
-    For each qubit, check if there are too many batches between its last two operations.
+    For each qubit, check if there are too many batches between its FIRST and SECOND operations only.
     
     Args:
         batches: Dictionary with batch numbers as keys and lists of operations as values
@@ -108,53 +109,53 @@ def detect_iq_smell_from_batches(batches, max_distance, circuit_name):
     """
     smells = []
     
-    # Track the batch history for each qubit
-    qubit_batch_history = {}
+    # Track the first two operations for each qubit
+    qubit_operations = {}
     
-    # Process each batch in order
+    # Process each batch in order to find first and second operations per qubit
     for batch_num in sorted(batches.keys()):
         operations = batches[batch_num]
         
         for operation in operations:
             for qubit in operation['qubits_affected']:
-                # Initialize history for this qubit if not exists
-                if qubit not in qubit_batch_history:
-                    qubit_batch_history[qubit] = []
+                # Initialize tracking for this qubit if not exists
+                if qubit not in qubit_operations:
+                    qubit_operations[qubit] = []
                 
-                # Add current batch and operation info to history
-                qubit_batch_history[qubit].append({
-                    'batch': batch_num,
-                    'operation': operation
-                })
+                # Only store first two operations
+                if len(qubit_operations[qubit]) < 2:
+                    qubit_operations[qubit].append({
+                        'batch': batch_num,
+                        'operation': operation
+                    })
     
-    # Check for IQ smell on each qubit
-    for qubit, history in qubit_batch_history.items():
-        if len(history) < 2:
+    # Check for IQ smell on each qubit (only between first and second operation)
+    for qubit, operations in qubit_operations.items():
+        if len(operations) < 2:
             # Need at least 2 operations to check distance
             continue
             
-        # Check distance between consecutive operations
-        for i in range(1, len(history)):
-            current_batch = history[i]['batch']
-            previous_batch = history[i-1]['batch']
+        # Only check distance between first and second operation
+        first_batch = operations[0]['batch']
+        second_batch = operations[1]['batch']
+        
+        # Calculate batch distance (number of batches between operations)
+        distance = second_batch - first_batch - 1
+        
+        if distance > max_distance:
+            # Get operation details for smell creation (using second operation)
+            second_op = operations[1]['operation']
             
-            # Calculate batch distance (number of batches between operations)
-            distance = current_batch - previous_batch - 1
-            
-            if distance > max_distance:
-                # Get operation details for smell creation
-                current_op = history[i]['operation']
-                
-                smell = IQ(
-                    row=current_op['row'],
-                    column_start=current_op['column_start'],
-                    column_end=current_op['column_end']+1,
-                    circuit_name=circuit_name,
-                    qubit=qubit,
-                    operation_distance=distance,
-                    operation_name=current_op['operation_name']
-                )
-                smells.append(smell)
+            smell = IQ(
+                row=second_op['row'],
+                column_start=second_op['column_start'],
+                column_end=second_op['column_end']+1,
+                circuit_name=circuit_name,
+                qubit=qubit,
+                operation_distance=distance,
+                operation_name=second_op['operation_name']
+            )
+            smells.append(smell)
     
     return smells
 
@@ -188,43 +189,4 @@ class IQDetector(Detector):
                 smells.append(smell)
         
 
-
-        """
-
-        for circuit_name, ops in circuits.items():
-            qubit_op_indices = defaultdict(list)
-
-            # Collect all operations per qubit
-            for index, op in enumerate(ops):
-                op_name = op.get('operation_name')
-                qubits = op.get('qubits_affected', [])
-                row = op.get('row')
-                col_start = op.get('column_start')+1
-                col_end = op.get('column_end')+1
-
-                if not qubits:
-                    continue
-
-                for q in qubits:
-                    qubit_op_indices[q].append((index, op_name, row, col_start, col_end))
-
-            # Check the distance between first and second operation for each qubit
-            for q, qubit_ops in qubit_op_indices.items():
-                if len(qubit_ops) >= max_distance:
-                    first_index, *_ = qubit_ops[0]
-                    second_index, second_op_name, row, col_start, col_end = qubit_ops[1]
-                    distance = second_index - first_index
-
-                    if distance > max_distance:
-                        smell = IQ(
-                            row=row,
-                            column_start=col_start,
-                            column_end=col_end,
-                            circuit_name=circuit_name,
-                            qubit=q,
-                            operation_distance=distance,
-                            operation_name=second_op_name
-                        )
-                        smells.append(smell)
-        """
         return smells
