@@ -138,7 +138,7 @@ Configure the LLM integration for smell explanations:
 
 1. **API Key**: Enter your OpenRouter API key
 2. **Model Selection**: Default model is `deepseek/deepseek-r1-distill-llama-70b:free`
-   - You can select any compatible model from ([OpenRouter](https://openrouter.ai/))
+   - You can select any compatible model from [OpenRouter](https://openrouter.ai/)
 
 ## Architecture
 
@@ -172,8 +172,6 @@ Example smell instances after detection:
   "row": 17,
   "column_start": 9,
   "column_end": 28,
-  "explanation": "",
-  "suggestion": "",
   "circuit_name": "qc",
   "qubit": 0
 }
