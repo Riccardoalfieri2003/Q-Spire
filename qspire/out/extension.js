@@ -2939,22 +2939,27 @@ function highlightSmellsAdvanced(results, method) {
 
 
 // Function to call Python explain function
-function callPythonExplain(filePath, smell, method) {
+async function callPythonExplain(filePath, smell, method) {
+    console.log("Funzione callPythonExplain chiamata");
 
-    console.log("Funzione callPythonExplain chiamata")
-
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => { // Aggiunto async qui
         const path = require('path');
-        const fs = require('fs');
         const { spawn } = require('child_process');
+
+        // 1. RECUPERA IL PERCORSO DELL'INTERPRETE SELEZIONATO
+        const pythonExtension = vscode.extensions.getExtension('ms-python.python');
+        if (!pythonExtension) {
+            return reject("Estensione Python di Microsoft non trovata!");
+        }
         
-        // Get the project root the same way as your detection function
-        const projectRoot = path.resolve(__dirname, '..'); // Go up one level from 'out' to project root
-        
-        // Determine Python command (same as your existing code)
-        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-        
-        // Create temporary wrapper script path
+        const api = await pythonExtension.activate();
+        const pythonDetails = api.settings.getExecutionDetails();
+        // Questo prenderà l'eseguibile del tuo .venv se selezionato in VS Code
+        const pythonCmd = pythonDetails.execCommand ? pythonDetails.execCommand[0] : 'python';
+
+        console.log(`Usando l'interprete: ${pythonCmd}`);
+
+        const projectRoot = path.resolve(__dirname, '..'); 
         const wrapperScriptPath = path.join(projectRoot, 'temp_explain_wrapper.py');
         
         // Create the Python wrapper code

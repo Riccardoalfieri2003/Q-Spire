@@ -195,13 +195,13 @@ class CGDetector(Detector, ast.NodeVisitor):
                         elif isinstance(qubits_node, ast.Name):
                             qubits = self.variables.get(qubits_node.id)
 
-                    col_start = node.col_offset
-                    col_end = getattr(node, "end_col_offset", col_start + 1)
+                    column_start = node.col_offset
+                    column_end = getattr(node, "end_col_offset", column_start + 1)
 
                     self.calls.append({
                         "row": node.lineno,
-                        "col_start": col_start,
-                        "col_end": col_end,
+                        "column_start": column_start,
+                        "column_end": column_end,
                         "circuit_name": circuit_name,
                         "matrix": matrix,
                         "qubits": qubits,
@@ -226,12 +226,12 @@ class CGDetector(Detector, ast.NodeVisitor):
                                 if matrix is not None and not isinstance(matrix, str):
                                     self.found_matrixes.append(matrix)
 
-                                col_start = node.col_offset
-                                col_end = getattr(node, "end_col_offset", col_start + 1)
+                                column_start = node.col_offset
+                                column_end = getattr(node, "end_col_offset", column_start + 1)
                                 self.calls.append({
                                     "row": node.lineno,
-                                    "col_start": col_start,
-                                    "col_end": col_end,
+                                    "column_start": column_start,
+                                    "column_end": column_end,
                                     "circuit_name": circuit_name,
                                     "matrix": matrix,
                                     "qubits": None,
@@ -251,8 +251,8 @@ class CGDetector(Detector, ast.NodeVisitor):
         for call_info in visitor.calls:
             smells.append(self.smell_cls(
                 row=call_info["row"],
-                col_start=call_info["col_start"] + 1,
-                col_end=call_info["col_end"] + 1,
+                column_start=call_info["column_start"] + 1,
+                column_end=call_info["column_end"] + 1,
                 matrix=call_info.get("matrix"),
                 qubits=call_info.get("qubits"),
                 circuit_name=call_info.get("circuit_name"),

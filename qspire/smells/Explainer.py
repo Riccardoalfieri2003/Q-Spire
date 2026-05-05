@@ -42,10 +42,14 @@ class Explainer:
         #print(prompt)
         #return
 
+        #print(f"API_KEY: {API_KEY}")
+
         client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=API_KEY,
         )
+
+        
 
         completion = client.chat.completions.create(
             model=LLM_MODEL,

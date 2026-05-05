@@ -31,8 +31,8 @@ class LPQDetector(Detector, ast.NodeVisitor):
 
             if not has_initial_layout:
                 row = call.lineno
-                col_start = call.col_offset+1
-                col_end = getattr(call, 'end_col_offset', col_start + len("transpile"))+1
+                column_start = call.col_offset+1
+                column_end = getattr(call, 'end_col_offset', column_start + len("transpile"))+1
 
                 circuit_name = None
                 if call.args:
@@ -46,8 +46,8 @@ class LPQDetector(Detector, ast.NodeVisitor):
 
                 smell = LPQ(
                     row=row,
-                    col_start=col_start,
-                    col_end=col_end,
+                    column_start=column_start,
+                    column_end=column_end,
                     circuit_name=circuit_name,
                     explanation="",
                     suggestion=""

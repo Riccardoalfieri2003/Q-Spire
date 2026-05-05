@@ -123,7 +123,7 @@ class RunExecuteParametersCalls:
         
         return run_calls, execute_calls, assign_parameters_calls, bind_parameters_calls
     
-    def _track_function_call(self, func_name: str, row: int, col_start: int, col_end: int, 
+    def _track_function_call(self, func_name: str, row: int, column_start: int, column_end: int, 
                            original_obj, original_method_name, circuit_info, *args, **kwargs):
         """Track a function call and execute the original function."""
         if self.debug:
@@ -133,8 +133,8 @@ class RunExecuteParametersCalls:
         call_record = {
             'circuit': circuit_info,
             'row': row,
-            'column_start': col_start,
-            'column_end': col_end
+            'column_start': column_start,
+            'column_end': column_end
         }
         
         self.call_info[func_name].append(call_record)
@@ -217,7 +217,7 @@ class FunctionCallInstrumentor(ast.NodeTransformer):
             
             if method_name in self.target_functions:
                 # Get column end position
-                col_end = getattr(node, 'end_col_offset', node.col_offset + len(method_name))
+                column_end = getattr(node, 'end_col_offset', node.col_offset + len(method_name))
                 
                 # Try to determine the circuit name
                 circuit_info = self._determine_circuit_info(node, method_name)
@@ -232,7 +232,7 @@ class FunctionCallInstrumentor(ast.NodeTransformer):
                             ast.Constant(value=method_name),           # function name
                             ast.Constant(value=node.lineno),          # row
                             ast.Constant(value=node.col_offset),      # column start
-                            ast.Constant(value=col_end),              # column end
+                            ast.Constant(value=column_end),              # column end
                             node.func.value,                          # the object (e.g., backend, qc)
                             ast.Constant(value=method_name),          # method name to call
                             circuit_info,                             # circuit information
@@ -247,7 +247,7 @@ class FunctionCallInstrumentor(ast.NodeTransformer):
                             ast.Constant(value=method_name),           # function name
                             ast.Constant(value=node.lineno),          # row
                             ast.Constant(value=node.col_offset),      # column start
-                            ast.Constant(value=col_end),              # column end
+                            ast.Constant(value=column_end),              # column end
                             node.func.value,                          # the object (e.g., backend, qc)
                             ast.Constant(value=method_name),          # method name to call
                             circuit_info,                             # circuit information
