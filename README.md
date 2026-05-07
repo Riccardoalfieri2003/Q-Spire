@@ -129,7 +129,7 @@ qspire -static "C:/quantum_project" "C:/results"
 ### Detection Thresholds
 
 Customize smell detection sensitivity by modifying thresholds in the configuration. Access settings through:
-- GUI: Settings panel in the Results window
+- GUI: Settings panel in the Detection window
 - CLI: Edit the configuration file (config.json)
 
 ### AI Explanations
@@ -137,8 +137,7 @@ Customize smell detection sensitivity by modifying thresholds in the configurati
 Configure the LLM integration for smell explanations:
 
 1. **API Key**: Enter your OpenRouter API key
-2. **Model Selection**: Default model is `deepseek/deepseek-r1-distill-llama-70b:free`
-   - You can select any compatible model from [OpenRouter](https://openrouter.ai/)
+2. **Model Selection**: You can select any compatible model from [OpenRouter](https://openrouter.ai/)
 
 ## Architecture
 
