@@ -1004,7 +1004,13 @@ class MockParameterView:
 
 class MockQuantumCircuit:
     """Enhanced mock QuantumCircuit with proper parameter handling - FIXED VERSION."""
-    def __init__(self, num_qubits=2, num_clbits=0, name=None):
+    def __init__(self, num_qubits=2, num_clbits=0, name=None, *args, **kwargs):
+        # qspire-fix: accept registers, bit lists, unknown sizes and extra arguments, so that
+        # AutoFix does not replace the constructor call with an unrelated mock instance
+        num_qubits = self._qs_size(num_qubits, 2)
+        num_clbits = self._qs_size(num_clbits, 0)
+        if not isinstance(name, str):
+            name = None
         self.num_qubits = num_qubits
         self.num_clbits = num_clbits
         self.name = name or "circuit"
@@ -1023,6 +1029,21 @@ class MockQuantumCircuit:
         self.data = []  # Instructions
         self.global_phase = 0
     
+    @staticmethod
+    def _qs_size(x, default):
+        if isinstance(x, bool):
+            return default
+        if isinstance(x, int):
+            return max(x, 0)
+        try:
+            return len(x)
+        except Exception:
+            pass
+        try:
+            return max(int(x), 0)
+        except Exception:
+            return default
+
     @property
     def num_parameters(self):
         """Return the number of parameters as an integer (CRITICAL FIX for numpy compatibility)."""
@@ -1063,6 +1084,16 @@ class MockQuantumCircuit:
             # Don't mock dunder methods
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
         return lambda *args, **kwargs: self
+
+    # qspire-fix: allow control-flow builders (with qc.if_test(...), with qc.switch(...) as case, with case(0))
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def __call__(self, *args, **kwargs):
+        return self
 
 # Override the standard QuantumCircuit with our mock
 QuantumCircuit = MockQuantumCircuit
@@ -1352,7 +1383,7 @@ except Exception as e:
     # Create a basic mock instead
     self = type('Mock{containing_class}', (), {{
         '__init__': lambda self, *args, **kwargs: None,
-        '__getattr__': lambda self, name: lambda *args, **kwargs: None
+        '__getattr__': lambda self, name: (lambda *args, **kwargs: type('QSpireAny', (), {{'__enter__': lambda c: c, '__exit__': lambda c, *e: True, '__call__': lambda c, *a, **k: c, '__iter__': lambda c: iter(()), '__bool__': lambda c: True}})())
     }})()'''
                     else:
                         return f'''# Create instance
@@ -1363,13 +1394,13 @@ except Exception as e:
     # Create a basic mock instead
     self = type('Mock{containing_class}', (), {{
         '__init__': lambda self, *args, **kwargs: None,
-        '__getattr__': lambda self, name: lambda *args, **kwargs: None
+        '__getattr__': lambda self, name: (lambda *args, **kwargs: type('QSpireAny', (), {{'__enter__': lambda c: c, '__exit__': lambda c, *e: True, '__call__': lambda c, *a, **k: c, '__iter__': lambda c: iter(()), '__bool__': lambda c: True}})())
     }})()'''
                 else:
                     # No constructor parameters found, create a basic mock
                     return f'''self = type('Mock{containing_class}', (), {{
     '__init__': lambda self, *args, **kwargs: None,
-    '__getattr__': lambda self, name: lambda *args, **kwargs: None,
+    '__getattr__': lambda self, name: (lambda *args, **kwargs: type('QSpireAny', (), {{'__enter__': lambda c: c, '__exit__': lambda c, *e: True, '__call__': lambda c, *a, **k: c, '__iter__': lambda c: iter(()), '__bool__': lambda c: True}})()),
     'qubits': [],
     'num_qubits': 2
 }})()  # Mock instance'''

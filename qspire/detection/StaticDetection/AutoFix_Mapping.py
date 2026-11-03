@@ -2036,7 +2036,12 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
         
         # If no syntax errors, try to execute the file
         if debug: print("🏃 Executing file to check for runtime errors...")
-        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
+        # qspire-fix: bound each run; a script that runs this long has no early error left to fix
+        try:
+            proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True,
+                                  timeout=float(os.environ.get("QSPIRE_AUTOFIX_RUN_TIMEOUT", "60")))
+        except subprocess.TimeoutExpired:
+            return True, mapper.mappings
 
         if proc.returncode == 0:
             if debug: 

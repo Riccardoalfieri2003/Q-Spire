@@ -1,7 +1,10 @@
+from smells.utils import mock_missing  # qspire-fix: mock missing third-party modules in generated scripts
+mock_missing.enable_for_children()
 import csv
 from datetime import datetime
 from pathlib import Path
 import shutil
+import sys
 import threading
 import os
 from detection.StaticDetection.StaticCircuit import FunctionExecutionGenerator
@@ -775,6 +778,7 @@ def _map_function_lines_regex(original_func: Dict, main_block: Dict, similarity_
     line_mappings = []
     
     # For each line in the MAIN BLOCK, find the best match in the ORIGINAL FUNCTION
+    last_mapped = -1
     for main_line in main_lines:
         main_content = main_line['stripped_content']
         
@@ -792,17 +796,29 @@ def _map_function_lines_regex(original_func: Dict, main_block: Dict, similarity_
         
         best_match = None
         best_similarity = 0.0
+        ties = []
         
         # Find the best matching line in executable original lines
         for orig_line in executable_original_lines:
             similarity = calculate_similarity(main_content, orig_line['stripped_content'])
             
-            if similarity > best_similarity:
+            if similarity > best_similarity + 1e-12:
                 best_similarity = similarity
                 best_match = orig_line
+                ties = [orig_line]
+            elif best_match is not None and abs(similarity - best_similarity) <= 1e-12:
+                ties.append(orig_line)
+
+        # qspire-fix: when the same statement occurs more than once, keep the order of the
+        # function body (the first candidate after the previous mapped line), instead of
+        # always mapping to the first occurrence
+        if len(ties) > 1:
+            after = [t for t in ties if t['line_number'] > last_mapped]
+            best_match = after[0] if after else ties[0]
         
         # Only include the mapping if similarity meets threshold
         if best_match and best_similarity >= similarity_threshold:
+            last_mapped = best_match['line_number']
             line_mappings.append({
                 "generated_line": main_line['line_number'],
                 "generated_content": main_line['content'],
@@ -4614,7 +4630,12 @@ def auto_fix_with_mapping(target_path: Path, debug: bool = False) -> Tuple[bool,
         
         # If no syntax errors, try to execute the file
         if debug: print("🏃 Executing file to check for runtime errors...")
-        proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True)
+        # qspire-fix: bound each run; a script that runs this long has no early error left to fix
+        try:
+            proc = subprocess.run([sys.executable, str(target_path)], capture_output=True, text=True,
+                                  timeout=float(os.environ.get("QSPIRE_AUTOFIX_RUN_TIMEOUT", "60")))
+        except subprocess.TimeoutExpired:
+            return True, mapper.mappings
 
         if proc.returncode == 0:
             print(f"Fixing completed on {target_path.name}: runs without errors after {iteration} iterations")
@@ -5393,6 +5414,243 @@ def save_results_to_file(results: dict, file_path: Path):
 
 
 
+def _real_tracker():
+    return os.environ.get("QSPIRE_TRACKER", "") != "legacy"
+
+
+def _map_smell_rows(smell, auto_fix_map_var, map_lines_of_code_var):
+    """Map the rows of a smell from the generated script to the original file (former loop body)."""
+
+    if smell.type in ["CG", "LPQ"]: pass
+
+
+    if smell.type in  ["IM", "IQ", "IdQ"]:
+
+            row = smell.row
+
+            if row is None:
+                return  # Skip if the smell doesn't have a row
+
+            matched_tuple = None
+
+            # Search for the tuple in auto_fix_with_mapping whose value list includes this row
+            for tuple_str, line_list in auto_fix_map_var.items():
+                if isinstance(line_list, list) and row in line_list:
+                    matched_tuple = tuple_str
+                    break
+            
+            alternative=False
+
+            if matched_tuple is not None:
+                #continue  # No mapping found for this smell
+                alternative=True
+
+
+
+            if alternative==False:
+                # Convert tuple string (e.g., "(3, 0, 77)") to actual tuple
+                parsed_tuple = matched_tuple
+
+                if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
+                    #continue
+                    alternative=True
+
+                if alternative==False:
+                    generated_line = parsed_tuple[0]
+
+                    # Look up original line from map_lines_simple
+                    original_line = map_lines_of_code_var.get(generated_line)
+
+                    # Attach all this info to the smell object
+                    smell.set_row(original_line)
+                    smell.set_column_start(None)
+                    smell.set_column_end(None)
+
+
+            if alternative==True:
+                original_line = map_lines_of_code_var.get(row)
+
+                # Attach all this info to the smell object
+                smell.set_row(original_line)
+                smell.set_column_start(None)
+                smell.set_column_end(None)
+
+
+
+
+    if smell.type=="LC": pass
+
+    if smell.type == "ROC":
+
+        rows = smell.rows
+
+        if rows is None or not isinstance(rows, list) or len(rows) == 0:
+            return  # Skip if the smell doesn't have rows or rows is empty
+
+        # Store the final mapped rows
+        original_rows = []
+
+        # qspire-fix: the ROC detector returns a flat list of rows, while this loop expects
+        # tuples, so ROC rows were never mapped to the original file
+        if all(isinstance(x, int) for x in rows):
+            rows = [tuple(rows)]
+
+        for row_tuple in rows:
+
+            if not isinstance(row_tuple, tuple):
+                continue  # Skip if it's not a tuple
+            
+            # Process each row number in the tuple
+            tuple_original_rows = []
+            for row in row_tuple:
+                if row is None:
+                    tuple_original_rows.append(None)
+                    continue
+                
+                matched_tuple = None
+                
+                # Search for the tuple in auto_fix_with_mapping whose value list includes this row
+                # qspire-fix: rows of the real tracker refer to the script before AutoFix
+                for tuple_str, line_list in ({} if _real_tracker() else auto_fix_map_var).items():
+                    if isinstance(line_list, list) and row in line_list:
+                        matched_tuple = tuple_str
+                        break
+
+                alternative=False    
+                
+                if matched_tuple is None:
+                    #tuple_original_rows.append(None)  # No mapping found for this row
+                    #continue
+                    alternative=True
+                
+
+                if alternative==False:
+                    # The matched_tuple should already be a tuple, not a string
+                    parsed_tuple = matched_tuple
+                    
+                    generated_line = parsed_tuple[0]
+                    
+                    # Look up original line from map_lines_simple
+                    original_line = map_lines_of_code_var.get(generated_line)
+                    tuple_original_rows.append(original_line)
+
+                if alternative==True:
+                    original_line = map_lines_of_code_var.get(row)
+                    tuple_original_rows.append(original_line)
+
+            
+            # Add the processed tuple to our results
+            original_rows.append(tuple(tuple_original_rows))
+
+
+        # Only proceed if we found at least some mappings
+        if not original_rows or all(all(row is None for row in row_tuple) for row_tuple in original_rows):
+            return  # No valid mappings found for any rows
+
+        # Attach the mapped rows to the smell object 
+        smell.set_rows(original_rows)
+        smell.set_column_start(None)
+        smell.set_column_end(None)
+
+
+
+
+        
+
+    if smell.type=="NC":
+        # Pre-build a reverse lookup dictionary for faster searching
+        row_to_tuple_map = {}
+        
+        for tuple_str, line_list in auto_fix_map_var.items():
+            if isinstance(line_list, list):
+                for line in line_list:
+                    row_to_tuple_map[line] = tuple_str
+
+        def map_single_row(row):
+            """Helper function to map a single row number"""
+            if row is None:
+                return None
+            
+            # Fast lookup using pre-built dictionary
+            matched_tuple = row_to_tuple_map.get(row)
+            
+
+            alternative=False
+            if matched_tuple is None:
+                #return None
+                alternative=True
+            
+            if alternative==False:
+                # Convert tuple string to actual tuple
+                parsed_tuple = matched_tuple
+                if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
+                    return None
+                
+                generated_line = parsed_tuple[0]
+                
+                # Look up original line from map_lines_simple
+                original_line = map_lines_of_code_var.get(generated_line)
+                return original_line
+            
+            if alternative==True:
+                original_line = map_lines_of_code_var.get(row)
+                return original_line
+
+
+
+        # Track if we found any valid mappings
+        found_mappings = False
+
+        # Process run_calls
+        run_calls = smell.run_calls if hasattr(smell, 'run_calls') else []
+        if isinstance(run_calls, list):
+            for call in run_calls:
+                if isinstance(call, dict) and 'row' in call:
+                    original_row = map_single_row(call['row'])
+                    if original_row is not None:
+                        call['row'] = original_row
+                        found_mappings = True
+
+        # Process assign_parameter_calls  
+        assign_parameter_calls = smell.assign_parameter_calls if hasattr(smell, 'assign_parameter_calls') else []
+        if isinstance(assign_parameter_calls, list):
+            for call in assign_parameter_calls:
+                if isinstance(call, dict) and 'row' in call:
+                    original_row = map_single_row(call['row'])
+                    if original_row is not None:
+                        call['row'] = original_row
+                        found_mappings = True
+
+        # Process execute_calls (in case it becomes a list in the future)
+        execute_calls = smell.execute_calls if hasattr(smell, 'execute_calls') else []
+        if isinstance(execute_calls, list):
+            for call in execute_calls:
+                if isinstance(call, dict) and 'row' in call:
+                    original_row = map_single_row(call['row'])
+                    if original_row is not None:
+                        call['row'] = original_row
+                        found_mappings = True
+
+        # Process bind_parameter_calls (in case it becomes a list in the future)
+        bind_parameter_calls = smell.bind_parameter_calls if hasattr(smell, 'bind_parameter_calls') else []
+        if isinstance(bind_parameter_calls, list):
+            for call in bind_parameter_calls:
+                if isinstance(call, dict) and 'row' in call:
+                    original_row = map_single_row(call['row'])
+                    if original_row is not None:
+                        call['row'] = original_row
+                        found_mappings = True
+
+        # Only continue if we found at least some valid mappings
+        if not found_mappings:
+            return  # No valid mappings found for any rows
+
+        # Clear the main row attributes since they're not relevant for this smell type
+        smell.set_row(None)
+        smell.set_column_start(None)
+        smell.set_column_end(None)
+
+
 def get_function_smells(exe, executables_dict_exe):
 
     filename = os.path.basename(exe)  # gets "executable_initializer.py"
@@ -5412,16 +5670,32 @@ def get_function_smells(exe, executables_dict_exe):
     
     
 
+    # qspire-fix: keep a copy of the generated script before AutoFix changes it in place.
+    # The circuit tracker runs this copy (AutoFix may delete circuit-building statements when
+    # later code fails on the mock circuit), and the line mapping is computed on it, instead
+    # of racing with AutoFix on the same file.
+    prefix = exe + ".prefix"
+    try:
+        shutil.copyfile(exe, prefix)
+    except Exception:
+        prefix = exe
+
     # Start thread for map_lines_of_code
-    main_map = threading.Thread(target=wrapper, args=(map_lines_of_code, result, 'map_lines_of_code', executables_dict_exe, function, exe),)
+    main_map = threading.Thread(target=wrapper, args=(map_lines_of_code, result, 'map_lines_of_code', executables_dict_exe, function, prefix),)
     main_map.start()
     threads.append(main_map)
     
     
     # Start thread for auto_fix_with_mapping (we keep only the mappings)
-    mappings = threading.Thread(target=wrapper, args=(lambda p: auto_fix_with_mapping(p, debug=False)[1], result, 'auto_fix_with_mapping', Path(exe)))
-    mappings.start()
-    threads.append(mappings)
+    # qspire-fix: with the real circuit tracker, the detectors run the generated script
+    # statement by statement and skip (or mock) what fails, so AutoFix is not needed; it
+    # was the slowest step and could delete circuit-building code. QSPIRE_AUTOFIX=1 keeps it.
+    if _real_tracker() and os.environ.get("QSPIRE_AUTOFIX", "0") != "1":
+        result['auto_fix_with_mapping'] = {}
+    else:
+        mappings = threading.Thread(target=wrapper, args=(lambda p: auto_fix_with_mapping(p, debug=False)[1], result, 'auto_fix_with_mapping', Path(exe)))
+        mappings.start()
+        threads.append(mappings)
     
 
     # Wait for all threads to finish for this exe
@@ -5440,7 +5714,7 @@ def get_function_smells(exe, executables_dict_exe):
 
     # Reduce map_lines_of_code to just {generated_line: original_line}
     
-    if 'map_lines_of_code' in result and 'mapping' in result['map_lines_of_code']:
+    if isinstance(result.get('map_lines_of_code'), dict) and isinstance(result['map_lines_of_code'].get('mapping'), dict):  # qspire-fix: None when mapping fails
         line_mappings = result['map_lines_of_code']['mapping'].get('line_mappings', [])
         result['map_lines_of_code'] = {
             mapping['generated_line']: mapping['original_line']
@@ -5457,9 +5731,11 @@ def get_function_smells(exe, executables_dict_exe):
 
     
     
-    auto_fix_map_var = results[exe].get("auto_fix_with_mapping", {})    # From the generated file, maps the differences of the lines before and after the fix
+    # qspire-fix: when AutoFix fails it stores None; with `.get(..., {})` the `.items()` below
+    # raised AttributeError and all the smells of the function were silently dropped
+    auto_fix_map_var = results[exe].get("auto_fix_with_mapping") or {}    # From the generated file, maps the differences of the lines before and after the fix
     #map_lines_simple_var = results[exe].get("map_lines_simple", {})     # Maps lines before the main
-    map_lines_of_code_var = results[exe].get("map_lines_of_code", {})   # Maps the main lines
+    map_lines_of_code_var = results[exe].get("map_lines_of_code") or {}   # Maps the main lines
 
     print(f"Smell detection in function executable file: {exe}")
     smells = detect_smells_from_file(exe)
@@ -5477,229 +5753,11 @@ def get_function_smells(exe, executables_dict_exe):
     smells = [smell for smell in smells if smell.type not in ["CG", "LPQ"]]
 
     for smell in smells:
-
-        if smell.type in ["CG", "LPQ"]: pass
-
-
-        if smell.type in  ["IM", "IQ", "IdQ"]:
-
-                row = smell.row
-
-                if row is None:
-                    continue  # Skip if the smell doesn't have a row
-
-                matched_tuple = None
-
-                # Search for the tuple in auto_fix_with_mapping whose value list includes this row
-                for tuple_str, line_list in auto_fix_map_var.items():
-                    if isinstance(line_list, list) and row in line_list:
-                        matched_tuple = tuple_str
-                        break
-                
-                alternative=False
-
-                if matched_tuple is not None:
-                    #continue  # No mapping found for this smell
-                    alternative=True
-
-
-
-                if alternative==False:
-                    # Convert tuple string (e.g., "(3, 0, 77)") to actual tuple
-                    parsed_tuple = matched_tuple
-
-                    if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
-                        #continue
-                        alternative=True
-
-                    if alternative==False:
-                        generated_line = parsed_tuple[0]
-
-                        # Look up original line from map_lines_simple
-                        original_line = map_lines_of_code_var.get(generated_line)
-
-                        # Attach all this info to the smell object
-                        smell.set_row(original_line)
-                        smell.set_column_start(None)
-                        smell.set_column_end(None)
-
-
-                if alternative==True:
-                    original_line = map_lines_of_code_var.get(row)
-
-                    # Attach all this info to the smell object
-                    smell.set_row(original_line)
-                    smell.set_column_start(None)
-                    smell.set_column_end(None)
-
-
-
-
-        if smell.type=="LC": pass
-
-        if smell.type == "ROC":
-
-            rows = smell.rows
-
-            if rows is None or not isinstance(rows, list) or len(rows) == 0:
-                continue  # Skip if the smell doesn't have rows or rows is empty
-
-            # Store the final mapped rows
-            original_rows = []
-
-            for row_tuple in rows:
-
-                if not isinstance(row_tuple, tuple):
-                    continue  # Skip if it's not a tuple
-                
-                # Process each row number in the tuple
-                tuple_original_rows = []
-                for row in row_tuple:
-                    if row is None:
-                        tuple_original_rows.append(None)
-                        continue
-                    
-                    matched_tuple = None
-                    
-                    # Search for the tuple in auto_fix_with_mapping whose value list includes this row
-                    for tuple_str, line_list in auto_fix_map_var.items():
-                        if isinstance(line_list, list) and row in line_list:
-                            matched_tuple = tuple_str
-                            break
-
-                    alternative=False    
-                    
-                    if matched_tuple is None:
-                        #tuple_original_rows.append(None)  # No mapping found for this row
-                        #continue
-                        alternative=True
-                    
-
-                    if alternative==False:
-                        # The matched_tuple should already be a tuple, not a string
-                        parsed_tuple = matched_tuple
-                        
-                        generated_line = parsed_tuple[0]
-                        
-                        # Look up original line from map_lines_simple
-                        original_line = map_lines_of_code_var.get(generated_line)
-                        tuple_original_rows.append(original_line)
-
-                    if alternative==True:
-                        original_line = map_lines_of_code_var.get(row)
-                        tuple_original_rows.append(original_line)
-
-                
-                # Add the processed tuple to our results
-                original_rows.append(tuple(tuple_original_rows))
-
-
-            # Only proceed if we found at least some mappings
-            if not original_rows or all(all(row is None for row in row_tuple) for row_tuple in original_rows):
-                continue  # No valid mappings found for any rows
-
-            # Attach the mapped rows to the smell object 
-            smell.set_rows(original_rows)
-            smell.set_column_start(None)
-            smell.set_column_end(None)
-
-
-
-
-            
-
-        if smell.type=="NC":
-            # Pre-build a reverse lookup dictionary for faster searching
-            row_to_tuple_map = {}
-            
-            for tuple_str, line_list in auto_fix_map_var.items():
-                if isinstance(line_list, list):
-                    for line in line_list:
-                        row_to_tuple_map[line] = tuple_str
-
-            def map_single_row(row):
-                """Helper function to map a single row number"""
-                if row is None:
-                    return None
-                
-                # Fast lookup using pre-built dictionary
-                matched_tuple = row_to_tuple_map.get(row)
-                
-
-                alternative=False
-                if matched_tuple is None:
-                    #return None
-                    alternative=True
-                
-                if alternative==False:
-                    # Convert tuple string to actual tuple
-                    parsed_tuple = matched_tuple
-                    if not isinstance(parsed_tuple, tuple) or len(parsed_tuple) != 3:
-                        return None
-                    
-                    generated_line = parsed_tuple[0]
-                    
-                    # Look up original line from map_lines_simple
-                    original_line = map_lines_of_code_var.get(generated_line)
-                    return original_line
-                
-                if alternative==True:
-                    original_line = map_lines_of_code_var.get(row)
-                    return original_line
-
-
-
-            # Track if we found any valid mappings
-            found_mappings = False
-
-            # Process run_calls
-            run_calls = smell.run_calls if hasattr(smell, 'run_calls') else []
-            if isinstance(run_calls, list):
-                for call in run_calls:
-                    if isinstance(call, dict) and 'row' in call:
-                        original_row = map_single_row(call['row'])
-                        if original_row is not None:
-                            call['row'] = original_row
-                            found_mappings = True
-
-            # Process assign_parameter_calls  
-            assign_parameter_calls = smell.assign_parameter_calls if hasattr(smell, 'assign_parameter_calls') else []
-            if isinstance(assign_parameter_calls, list):
-                for call in assign_parameter_calls:
-                    if isinstance(call, dict) and 'row' in call:
-                        original_row = map_single_row(call['row'])
-                        if original_row is not None:
-                            call['row'] = original_row
-                            found_mappings = True
-
-            # Process execute_calls (in case it becomes a list in the future)
-            execute_calls = smell.execute_calls if hasattr(smell, 'execute_calls') else []
-            if isinstance(execute_calls, list):
-                for call in execute_calls:
-                    if isinstance(call, dict) and 'row' in call:
-                        original_row = map_single_row(call['row'])
-                        if original_row is not None:
-                            call['row'] = original_row
-                            found_mappings = True
-
-            # Process bind_parameter_calls (in case it becomes a list in the future)
-            bind_parameter_calls = smell.bind_parameter_calls if hasattr(smell, 'bind_parameter_calls') else []
-            if isinstance(bind_parameter_calls, list):
-                for call in bind_parameter_calls:
-                    if isinstance(call, dict) and 'row' in call:
-                        original_row = map_single_row(call['row'])
-                        if original_row is not None:
-                            call['row'] = original_row
-                            found_mappings = True
-
-            # Only continue if we found at least some valid mappings
-            if not found_mappings:
-                continue  # No valid mappings found for any rows
-
-            # Clear the main row attributes since they're not relevant for this smell type
-            smell.set_row(None)
-            smell.set_column_start(None)
-            smell.set_column_end(None)
+        # qspire-fix: a row-mapping error used to drop all the smells of the function
+        try:
+            _map_smell_rows(smell, auto_fix_map_var, map_lines_of_code_var)
+        except Exception:
+            pass
 
 
     
@@ -5794,12 +5852,19 @@ def autofix_map_detect( file_path:str ):
     lock = threading.Lock()
 
     
+    # qspire-fix: analyse at most QSPIRE_FUNCTION_JOBS functions at a time (each one runs
+    # Python subprocesses that import Qiskit); one thread per function exhausted memory on
+    # files with many test functions
+    slots = threading.BoundedSemaphore(int(os.environ.get("QSPIRE_FUNCTION_JOBS", str(os.cpu_count() or 2))))
+
     def process_exe(exe):
-        try:
-            result = get_function_smells(exe, executables_dict[exe])
-            with lock:
-                smells_dict[exe] = result
-        except: pass
+        with slots:
+            try:
+                result = get_function_smells(exe, executables_dict[exe])
+                with lock:
+                    smells_dict[exe] = result
+            except BaseException as e:  # qspire-fix: report instead of failing silently
+                print(f"[qspire] analysis of {os.path.basename(exe)} failed: {type(e).__name__}: {e}", file=sys.stderr)
 
     for exe in executables_dict:
         

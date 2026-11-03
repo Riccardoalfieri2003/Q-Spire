@@ -885,8 +885,22 @@ class QuantumCircuitAnalyzer:
 
 
 def analyze_quantum_file(input_file: str, output_file: str = None, debug: bool = False):
+    """Return {circuit_name: [operations]} for the circuits built by the analyzed code.
+
+    Since v1.1 the circuits are obtained by executing the code with the real Qiskit
+    (RealCircuitTracker). The previous text-based reconstruction is kept as
+    analyze_quantum_file_legacy and can be selected with QSPIRE_TRACKER=legacy.
     """
-    Analyze a quantum circuit file and optionally save results.
+    import os
+    if os.environ.get("QSPIRE_TRACKER", "real").lower() == "legacy":
+        return analyze_quantum_file_legacy(input_file, output_file, debug)
+    from smells.utils.RealCircuitTracker import analyze_quantum_file as _real
+    return _real(input_file, output_file, debug)
+
+
+def analyze_quantum_file_legacy(input_file: str, output_file: str = None, debug: bool = False):
+    """
+    Analyze a quantum circuit file and optionally save results (legacy, text-based).
     
     Args:
         input_file: Path to Python file containing quantum circuits

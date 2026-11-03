@@ -26,6 +26,10 @@ class IMDetector(Detector):
             qubit_ops = {}
 
             for idx, op in enumerate(operations):
+                # qspire-fix: a barrier is a directive, not an operation on the qubit, so a
+                # measurement followed only by barriers is terminal (as in QSmell)
+                if op['operation_name'] == 'barrier':
+                    continue
                 for q in op['qubits_affected']:
                     if q not in qubit_ops:
                         qubit_ops[q] = []

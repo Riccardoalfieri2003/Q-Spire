@@ -11,7 +11,10 @@ class LPQDetector(Detector, ast.NodeVisitor):
     def __init__(self, smell_cls):
         super().__init__(smell_cls)
         self.transpile_calls = []
-        self.transpile_aliases = set(["transpile"])  # starts with the real name
+        self.transpile_aliases = set()      # names bound to qiskit's transpile
+        self.qiskit_module_aliases = set()  # names bound to qiskit / qiskit.compiler modules
+        self.star_import_from_qiskit = False
+        self.locally_defined = set()
 
     def detect(self, file: str) -> list[LPQ]:
 
@@ -20,6 +23,24 @@ class LPQDetector(Detector, ast.NodeVisitor):
 
         # Parse and visit AST
         tree = ast.parse(code)
+        # qspire-fix: resolve which names refer to Qiskit's transpile before visiting calls
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[0] == "qiskit":
+                for alias in node.names:
+                    if alias.name == "transpile":
+                        self.transpile_aliases.add(alias.asname or alias.name)
+                    elif alias.name == "*":
+                        self.star_import_from_qiskit = True
+                    elif alias.name == "compiler":
+                        self.qiskit_module_aliases.add(alias.asname or alias.name)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.split(".")[0] == "qiskit":
+                        self.qiskit_module_aliases.add(alias.asname or alias.name.split(".")[0])
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "transpile":
+                self.locally_defined.add(node.name)
+        if self.star_import_from_qiskit and "transpile" not in self.locally_defined:
+            self.transpile_aliases.add("transpile")
         self.visit(tree)
 
         smells = []
@@ -28,6 +49,9 @@ class LPQDetector(Detector, ast.NodeVisitor):
             has_initial_layout = any(
                 keyword.arg == "initial_layout" for keyword in call.keywords
             )
+            # qspire-fix: with **kwargs the layout may be passed indirectly; do not flag
+            if any(keyword.arg is None for keyword in call.keywords):
+                continue
 
             if not has_initial_layout:
                 row = call.lineno
@@ -84,14 +108,17 @@ class LPQDetector(Detector, ast.NodeVisitor):
         """
         Check if the called function is named transpile or is an alias.
         """
-        called_func_name = None
-
+        # qspire-fix: flag only calls to Qiskit's transpile, i.e., a name imported from qiskit
+        # (or an alias of it) or an attribute of a qiskit module (qiskit.transpile,
+        # qiskit.compiler.transpile); other functions or methods named transpile are skipped
         if isinstance(node.func, ast.Name):
-            called_func_name = node.func.id
-        elif isinstance(node.func, ast.Attribute):
-            called_func_name = node.func.attr
-
-        if called_func_name in self.transpile_aliases:
-            self.transpile_calls.append(node)
+            if node.func.id in self.transpile_aliases:
+                self.transpile_calls.append(node)
+        elif isinstance(node.func, ast.Attribute) and node.func.attr == "transpile":
+            base = node.func.value
+            while isinstance(base, ast.Attribute):
+                base = base.value
+            if isinstance(base, ast.Name) and base.id in self.qiskit_module_aliases:
+                self.transpile_calls.append(node)
 
         self.generic_visit(node)

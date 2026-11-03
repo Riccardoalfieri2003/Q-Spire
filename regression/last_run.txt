@@ -1,0 +1,76 @@
+r01_terminal_only legacy instances: {'IM': 2, 'ROC': 1}
+r01_terminal_only real instances: {}
+r02_two_functions_same_name legacy instances: {'IM': 2, 'ROC': 1}
+r02_two_functions_same_name real instances: {}
+r03_im_with_return legacy instances: {}
+r03_im_with_return real instances: {'IM': 1}
+r04_im_no_return legacy instances: {'IM': 2, 'ROC': 1}
+r04_im_no_return real instances: {'IM': 1}
+r05_parametric_gate_index legacy instances: {}
+r05_parametric_gate_index real instances: {}
+r06_delay legacy instances: {}
+r06_delay real instances: {}
+r07_idle_qubit legacy instances: {}
+r07_idle_qubit real instances: {'IdQ': 1, 'IQ': 1}
+r08_loop_variable_range legacy instances: {}
+r08_loop_variable_range real instances: {'ROC': 1, 'LC': 1}
+r09_if_test legacy instances: {}
+r09_if_test real instances: {'IM': 1}
+r10_switch_cases legacy instances: {}
+r10_switch_cases real instances: {'IM': 1}
+r11_registers legacy instances: {}
+r11_registers real instances: {}
+r12_repeated_block legacy instances: {}
+r12_repeated_block real instances: {'ROC': 1}
+r13_subcircuit_append legacy instances: {}
+r13_subcircuit_append real instances: {'IM': 1}
+r14_module_level legacy instances: {}
+r14_module_level real instances: {}
+r15_cg_matrix_method legacy instances: {'ROC': 1, 'CG': 2}
+r15_cg_matrix_method real instances: {}
+r16_cg_local_function legacy instances: {'CG': 1}
+r16_cg_local_function real instances: {}
+r17_cg_true legacy instances: {'CG': 1}
+r17_cg_true real instances: {'CG': 1}
+r18_lpq_local_transpile legacy instances: {'ROC': 1, 'LPQ': 1}
+r18_lpq_local_transpile real instances: {}
+r19_lpq_kwargs legacy instances: {'ROC': 1, 'LPQ': 1}
+r19_lpq_kwargs real instances: {}
+r20_lpq_true legacy instances: {'LPQ': 2}
+r20_lpq_true real instances: {'LPQ': 2}
+r21_nc_pass_manager legacy instances: {'ROC': 1}
+r21_nc_pass_manager real instances: {}
+r22_nc_pub_binding legacy instances: {}
+r22_nc_pub_binding real instances: {}
+r23_nc_true legacy instances: {'NC': 1}
+r23_nc_true real instances: {'NC': 1}
+r24_old_api_and_unknown_size legacy instances: {'IM': 1, 'IQ': 1, 'IdQ': 1, 'LC': 1}
+r24_old_api_and_unknown_size real instances: {'IM': 1}
+r25_registers_im legacy instances: {}
+r25_registers_im real instances: {'IM': 1}
+r01_terminal_only | legacy: BAD [('IM', '0'), ('IM', '1'), ('ROC', '')] | real: OK  [] | expected []
+r02_two_functions_same_name | legacy: BAD [('IM', '0'), ('IM', '1'), ('ROC', '')] | real: OK  [] | expected []
+r03_im_with_return | legacy: BAD [] | real: OK  [('IM', '0')] | expected [('IM', '0')]
+r04_im_no_return | legacy: BAD [('IM', '0'), ('ROC', '')] | real: OK  [('IM', '0')] | expected [('IM', '0')]
+r05_parametric_gate_index | legacy: OK  [] | real: OK  [] | expected []
+r06_delay | legacy: OK  [] | real: OK  [] | expected []
+r07_idle_qubit | legacy: BAD [] | real: OK  [('IQ', '1'), ('IdQ', '1')] | expected [('IQ', '1'), ('IdQ', '1')]
+r08_loop_variable_range | legacy: BAD [] | real: OK  [('LC', ''), ('ROC', '')] | expected [('LC', ''), ('ROC', '')]
+r09_if_test | legacy: BAD [] | real: OK  [('IM', '0')] | expected [('IM', '0')]
+r10_switch_cases | legacy: BAD [] | real: OK  [('IM', '0')] | expected [('IM', '0')]
+r11_registers | legacy: OK  [] | real: OK  [] | expected []
+r12_repeated_block | legacy: BAD [] | real: OK  [('ROC', '')] | expected [('ROC', '')]
+r13_subcircuit_append | legacy: BAD [] | real: OK  [('IM', '0')] | expected [('IM', '0')]
+r14_module_level | legacy: OK  [] | real: OK  [] | expected []
+r15_cg_matrix_method | legacy: BAD [('CG', ''), ('ROC', '')] | real: OK  [] | expected []
+r16_cg_local_function | legacy: BAD [('CG', '')] | real: OK  [] | expected []
+r17_cg_true | legacy: OK  [('CG', '')] | real: OK  [('CG', '')] | expected [('CG', '')]
+r18_lpq_local_transpile | legacy: BAD [('LPQ', ''), ('ROC', '')] | real: OK  [] | expected []
+r19_lpq_kwargs | legacy: BAD [('LPQ', ''), ('ROC', '')] | real: OK  [] | expected []
+r20_lpq_true | legacy: OK  [('LPQ', '')] | real: OK  [('LPQ', '')] | expected [('LPQ', '')]
+r21_nc_pass_manager | legacy: BAD [('ROC', '')] | real: OK  [] | expected []
+r22_nc_pub_binding | legacy: OK  [] | real: OK  [] | expected []
+r23_nc_true | legacy: OK  [('NC', '')] | real: OK  [('NC', '')] | expected [('NC', '')]
+r24_old_api_and_unknown_size | legacy: BAD [('IM', '0'), ('IQ', '1'), ('IdQ', '1'), ('LC', '')] | real: OK  [('IM', '0')] | expected [('IM', '0')]
+r25_registers_im | legacy: BAD [] | real: OK  [('IM', '3')] | expected [('IM', '3')]
+passed: {'legacy': 8, 'real': 25} of 25

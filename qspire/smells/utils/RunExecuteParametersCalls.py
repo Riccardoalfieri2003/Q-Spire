@@ -1,4 +1,6 @@
 import ast
+import contextlib
+import time
 import re
 import importlib.util
 import sys
@@ -84,7 +86,29 @@ class RunExecuteParametersCalls:
             
             try:
                 # Execute the instrumented code
-                exec(compiled_code, exec_globals)
+                # qspire-fix: missing third-party modules are mocked instead of stopping the run
+                from smells.utils import mock_missing
+                ctx = mock_missing.active() if mock_missing.enabled() else contextlib.nullcontext()
+                # qspire-fix: bound the in-process execution (checked at every function call)
+                deadline = time.time() + float(os.environ.get("QSPIRE_NC_EXEC_TIMEOUT", "60"))
+
+                def _deadline_tracer(frame, event, arg):
+                    if time.time() > deadline:
+                        raise TimeoutError("qspire: NC execution time limit")
+                    return None
+
+                previous_tracer = sys.gettrace()
+                sys.settrace(_deadline_tracer)
+                try:
+                    with ctx:
+                        if os.environ.get("QSPIRE_TRACKER", "") == "legacy":
+                            exec(compiled_code, exec_globals)
+                        else:
+                            # qspire-fix: statement by statement, so that a failing statement
+                            # does not stop the rest (this replaces AutoFix in static mode)
+                            self._exec_tolerant(instrumented_tree, filepath, exec_globals)
+                finally:
+                    sys.settrace(previous_tracer)
             except SystemExit as e:
                 # Catch sys.exit() calls - this is expected behavior in analyzed code
                 if debug:
@@ -123,6 +147,46 @@ class RunExecuteParametersCalls:
         
         return run_calls, execute_calls, assign_parameters_calls, bind_parameters_calls
     
+    def _exec_tolerant(self, module, filename, g):
+        """Run a module statement by statement (descending into the `__main__` block).
+
+        A statement that raises is skipped. When it raises NameError, the undefined name is
+        bound to a permissive mock and the statement is run again (as AutoFix would mock it);
+        the calls recorded during the failed attempt are discarded first.
+        """
+        from smells.utils.mock_missing import Mock
+
+        def is_main(node):
+            t = getattr(node, "test", None)
+            return (isinstance(node, ast.If) and isinstance(t, ast.Compare) and isinstance(t.left, ast.Name)
+                    and t.left.id == "__name__" and len(t.comparators) == 1
+                    and isinstance(t.comparators[0], ast.Constant) and t.comparators[0].value == "__main__")
+
+        def run_list(stmts):
+            for node in stmts:
+                if is_main(node):
+                    run_list(node.body)
+                    continue
+                code = compile(ast.Module(body=[node], type_ignores=[]), filename, "exec")
+                for _ in range(6):
+                    saved = {k: len(v) for k, v in self.call_info.items()}
+                    try:
+                        exec(code, g)
+                        break
+                    except NameError as e:
+                        m = re.search(r"name '(\w+)' is not defined", str(e))
+                        if not m or m.group(1) in g:
+                            break
+                        for k in list(self.call_info):
+                            del self.call_info[k][saved.get(k, 0):]
+                        g[m.group(1)] = Mock(m.group(1))
+                    except (SystemExit, TimeoutError):
+                        raise
+                    except Exception:
+                        break
+
+        run_list(module.body)
+
     def _track_function_call(self, func_name: str, row: int, column_start: int, column_end: int, 
                            original_obj, original_method_name, circuit_info, *args, **kwargs):
         """Track a function call and execute the original function."""
@@ -136,8 +200,39 @@ class RunExecuteParametersCalls:
             'column_start': column_start,
             'column_end': column_end
         }
-        
+
+        # qspire-fix: a pass manager's or a transpiler pass's run() transpiles circuits (or
+        # DAGs) and does not execute them
+        is_pass_manager = func_name == 'run' and ('PassManager' in type(original_obj).__name__
+                                                  or _is_transpiler_pass(original_obj)
+                                                  or (args and type(args[0]).__name__ in ('DAGCircuit', 'DAGDependency')))
+        if is_pass_manager:
+            try:
+                return getattr(original_obj, original_method_name)(*args, **kwargs)
+            except Exception:
+                return args[0] if args else None
+
         self.call_info[func_name].append(call_record)
+
+        # qspire-fix: primitive PUBs such as sampler.run([(circuit, parameter_values)]) bind
+        # parameters at execution time, so they count as a binding as well
+        if func_name == 'run' and args:
+            pubs = args[0] if isinstance(args[0], (list, tuple)) else [args[0]]
+            def _binds(p):
+                if isinstance(p, tuple):  # (circuit, parameter_values, ...)
+                    return len(p) >= 2 and p[1] is not None
+                # coerced SamplerPub / EstimatorPub objects
+                values = getattr(p, 'parameter_values', None)
+                try:
+                    return int(getattr(values, 'num_parameters', 0) or 0) > 0
+                except Exception:
+                    return False
+            # qspire-fix: parameter values passed to run() next to the circuits, e.g.
+            # estimator.run(circuits, observables, parameter_values) (V1 primitives and
+            # gradients) or backend.run(circuits, parameter_binds=...) (Aer)
+            extra = list(args[1:]) + [v for k, v in kwargs.items() if k in ('parameter_values', 'parameter_binds')]
+            if any(_binds(p) for p in pubs) or any(_looks_like_values(x) for x in extra):
+                self.call_info['assign_parameters'].append(dict(call_record))
         
         # Execute the original function
         try:
@@ -202,19 +297,97 @@ class MockResult:
         return ['00', '11'] * 50  # Mock memory data
 
 
+def _is_transpiler_pass(obj):
+    try:
+        from qiskit.transpiler.basepasses import BasePass
+        return isinstance(obj, BasePass)
+    except Exception:
+        return False
+
+
+def _looks_like_values(x, depth=0):
+    """True for parameter values: numbers, possibly nested in lists/tuples/arrays/dicts."""
+    import numbers
+    try:
+        import numpy as np
+        if isinstance(x, np.ndarray):
+            return x.size > 0 and np.issubdtype(x.dtype, np.number)
+    except Exception:
+        pass
+    if isinstance(x, bool) or x is None or isinstance(x, str):
+        return False
+    if isinstance(x, numbers.Number):
+        return depth > 0
+    if isinstance(x, dict):
+        return len(x) > 0 and all(_looks_like_values(v, depth + 1) or isinstance(v, (list, tuple)) for v in x.values())
+    if isinstance(x, (list, tuple)) and depth < 3:
+        return len(x) > 0 and all(_looks_like_values(v, depth + 1) for v in x)
+    return False
+
+
 class FunctionCallInstrumentor(ast.NodeTransformer):
     """AST transformer to instrument function calls."""
     
+    _PM_NAME = re.compile(r"(?i)(^|_)(pm|pass_?manager|passmanager)s?$")
+    _PM_CALL = re.compile(r"(?i)pass_?manager")
+
     def __init__(self, tracker):
         self.tracker = tracker
         self.target_functions = tracker.target_functions
-    
+        self.pm_vars = set()
+
+    def visit_Module(self, node):
+        # qspire-fix: names bound to pass managers (PassManager(...), generate_preset_pass_manager(...));
+        # their run() transpiles and is not an execution. Needed when the object itself is a mock.
+        for n in ast.walk(node):
+            if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call):
+                f = n.value.func
+                fname = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+                if self._PM_CALL.search(fname or ""):
+                    for t in n.targets:
+                        if isinstance(t, ast.Name):
+                            self.pm_vars.add(t.id)
+                        elif isinstance(t, ast.Attribute):
+                            self.pm_vars.add(t.attr)
+        self.generic_visit(node)
+        return node
+
+    _DAG_NAME = re.compile(r"(?i)dag")
+    _PASS_NAME = re.compile(r"(?i)(^|_)pass(es)?_?$")
+
+    def _runs_on_dag(self, node):
+        # e.g. pass_.run(dag) or SomePass().run(circuit_to_dag(qc)): transpiler passes on DAGs
+        if not node.args:
+            return False
+        a = node.args[0]
+        if isinstance(a, ast.Name):
+            return bool(self._DAG_NAME.search(a.id))
+        if isinstance(a, ast.Attribute):
+            return bool(self._DAG_NAME.search(a.attr))
+        if isinstance(a, ast.Call):
+            f = a.func
+            fname = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+            return bool(self._DAG_NAME.search(fname or ""))
+        return False
+
+    def _is_pass_manager(self, receiver):
+        if isinstance(receiver, ast.Call):  # e.g. PassManager([...]).run(circuit)
+            f = receiver.func
+            fname = f.id if isinstance(f, ast.Name) else f.attr if isinstance(f, ast.Attribute) else ""
+            return bool(self._PM_CALL.search(fname or ""))
+        name = receiver.id if isinstance(receiver, ast.Name) else receiver.attr if isinstance(receiver, ast.Attribute) else None
+        return bool(name) and (name in self.pm_vars or bool(self._PM_NAME.search(name))
+                               or bool(self._PASS_NAME.search(name)))
+
     def visit_Call(self, node):
         self.generic_visit(node)
         
         if isinstance(node.func, ast.Attribute):
             method_name = node.func.attr
-            
+
+            if method_name == 'run' and (self._is_pass_manager(node.func.value) or self._runs_on_dag(node)):
+                return node  # qspire-fix: pass manager or transpiler pass, not an execution
+
             if method_name in self.target_functions:
                 # Get column end position
                 column_end = getattr(node, 'end_col_offset', node.col_offset + len(method_name))

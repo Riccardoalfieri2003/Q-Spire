@@ -58,7 +58,7 @@ class CGDetector(Detector, ast.NodeVisitor):
             def __init__(self):
                 self.calls = []
 
-                self.unitary_names = {"unitary"}
+                self.unitary_names = set()  # qspire-fix: bare unitary(...) only if imported from qiskit
                 self.unitary_gate_aliases = {"UnitaryGate", "HamiltonianGate", "SingleQubitUnitary"}
                 self.unitary_gate_instances = set()
                 self.obj_attr_aliases = set()
@@ -70,7 +70,7 @@ class CGDetector(Detector, ast.NodeVisitor):
 
             def visit_ImportFrom(self, node: ast.ImportFrom):
                 for alias in node.names:
-                    if alias.name == "unitary":
+                    if alias.name == "unitary" and node.module and node.module.split(".")[0] == "qiskit":
                         self.unitary_names.add(alias.asname or alias.name)
                     elif alias.name in self.unitary_gate_aliases:
                         self.unitary_gate_aliases.add(alias.asname or alias.name)
@@ -147,8 +147,13 @@ class CGDetector(Detector, ast.NodeVisitor):
                     attr = node.func.attr
 
                     if attr == "unitary" or attr in self.obj_attr_aliases:
-                        is_unitary_call = True
-                        gate_type = "unitary"
+                        # qspire-fix: QuantumCircuit.unitary(matrix, qubits) takes at least two
+                        # arguments; zero/one-argument calls (e.g., Cirq's circuit.unitary(),
+                        # cirq.unitary(op)) compute a matrix and are not custom gates
+                        n_args = len(node.args) + sum(1 for k in node.keywords if k.arg in ("obj", "qubits"))
+                        if n_args >= 2:
+                            is_unitary_call = True
+                            gate_type = "unitary"
 
                     elif attr == "append" and node.args:
                         arg0 = node.args[0]

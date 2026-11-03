@@ -363,7 +363,7 @@ class LCDetector(Detector):
                     smells.append(smell)
             """
             
-            circuits, backends, runs = analyze_circuits_backends_runs(file, debug=False)
+            # qspire-fix: the result of analyze_circuits_backends_runs was overwritten below (unused) and the call was slow; removed
 
             # circuits = analyze_quantum_file_circuits(file, debug=True)
             circuits = analyze_quantum_file(file, debug=False)
